@@ -50,7 +50,7 @@ static void opd_sigterm(void);
  */
 static void opd_open_files(void)
 {
-	devfd = op_open_device("/dev/oprofile/buffer");
+	devfd = op_open_device(OP_DRIVER_BASE"/buffer");
 	if (devfd == -1) {
 		if (errno == EINVAL)
 			fprintf(stderr, "Failed to open device. Possibly you have passed incorrect\n"
@@ -223,8 +223,8 @@ static void opd_26_init(void)
 
 	opd_create_vmlinux(vmlinux, kernel_range);
 
-	opd_buf_size = opd_read_fs_int("/dev/oprofile/", "buffer_size", 1);
-	kernel_pointer_size = opd_read_fs_int("/dev/oprofile/", "pointer_size", 1);
+	opd_buf_size = opd_read_fs_int(OP_DRIVER_BASE"/", "buffer_size", 1);
+	kernel_pointer_size = opd_read_fs_int(OP_DRIVER_BASE"/", "pointer_size", 1);
 
 	s_buf_bytesize = opd_buf_size * kernel_pointer_size;
 

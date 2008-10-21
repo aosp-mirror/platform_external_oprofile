@@ -142,7 +142,7 @@ static void get_anon_maps(struct transient * trans)
 		/* Note that this actually includes all mappings,
 		 * since we want stuff like [heap]
 		 */
-		ret = sscanf(buf, "%lx-%lx %20s %20s %20s %20s %20s",
+		ret = sscanf(buf, "%lx-%lx %19s %19s %19s %19s %19s",
 		             &start, &end, tmp, tmp, tmp, tmp, tmp);
 		if (ret < 6)
 			continue;

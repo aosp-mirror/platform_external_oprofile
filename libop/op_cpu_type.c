@@ -9,11 +9,14 @@
  * @author Philippe Elie
  */
 
+#include "config.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "op_cpu_type.h"
+#include "op_config.h"
 
 struct cpu_descr {
 	char const * pretty;
@@ -68,7 +71,7 @@ op_cpu op_get_cpu_type(void)
 	fp = fopen("/proc/sys/dev/oprofile/cpu_type", "r");
 	if (!fp) {
 		/* Try 2.6's oprofilefs one instead. */
-		fp = fopen("/dev/oprofile/cpu_type", "r");
+		fp = fopen(OP_DRIVER_BASE"/cpu_type", "r");
 		if (!fp) {
 			fprintf(stderr, "Unable to open cpu_type file for reading\n");
 			fprintf(stderr, "Make sure you have done opcontrol --init\n");

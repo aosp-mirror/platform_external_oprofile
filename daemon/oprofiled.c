@@ -424,7 +424,8 @@ static struct oprofiled_ops * get_ops(void)
 	switch (op_get_interface()) {
 		case OP_INTERFACE_24:
 			printf("Using 2.4 OProfile kernel interface.\n");
-			return &opd_24_ops;
+			//return &opd_24_ops;
+            return 0; // android. we should never need that.
 		case OP_INTERFACE_26:
 			printf("Using 2.6+ OProfile kernel interface.\n");
 			return &opd_26_ops;

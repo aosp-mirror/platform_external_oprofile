@@ -15,7 +15,11 @@
 #define OP_CONFIG_H
 
 /* various paths, duplicated in opcontrol */
-#define OP_BASE_DIR "/var/lib/oprofile/"
+
+#define OP_DRIVER_BASE "/dev.oprofile"
+#define OP_BASE_DIR "/tmp/oprofile/"
+//#define OP_BASE_DIR "/var/lib/oprofile/"
+
 #define OP_SAMPLES_DIR OP_BASE_DIR "samples/"
 #define OP_SAMPLES_CURRENT_DIR OP_SAMPLES_DIR "current/"
 #define OP_LOCK_FILE OP_BASE_DIR "lock"
@@ -24,7 +28,8 @@
 
 /* Global directory that stores debug files */
 #ifndef DEBUGDIR
-#define DEBUGDIR "/usr/lib/debug"
+//#define DEBUGDIR "/usr/lib/debug"
+#define DEBUGDIR "/tmp/debug"
 #endif
 
 #define OPD_MAGIC "DAE\n"

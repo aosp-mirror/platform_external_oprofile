@@ -11,6 +11,7 @@
  */
 
 #include <string.h>
+#include <stdlib.h>
 
 #include "op_libiberty.h"
 
@@ -35,4 +36,28 @@ void * xmemdup (void const * input, size_t copy_size, size_t alloc_size)
 
 	return output;
 }
+#endif
+
+#ifndef HAVE_LIBIBERTY_H
+
+void xmalloc_set_program_name(char const * a)
+{
+}
+
+void * xmalloc(size_t s)
+{
+    return malloc(s);
+}
+
+void * xrealloc(void *p, size_t s)
+{
+    return realloc(p, s);
+}
+
+/* Copy a string into a memory buffer without fail.  */
+char * xstrdup(char const * str)
+{
+    return strdup(str);
+}
+
 #endif

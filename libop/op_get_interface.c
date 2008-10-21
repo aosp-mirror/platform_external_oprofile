@@ -8,12 +8,15 @@
  * @author Will Cohen
  */
 
+#include "config.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "op_cpu_type.h"
 #include "op_file.h"
+#include "op_config.h"
 
 op_interface op_get_interface(void)
 {
@@ -24,7 +27,7 @@ op_interface op_get_interface(void)
 
 	if (op_file_readable("/proc/sys/dev/oprofile/cpu_type")) {
 		current_interface = OP_INTERFACE_24;
-	} else if (op_file_readable("/dev/oprofile/cpu_type")) {
+	} else if (op_file_readable(OP_DRIVER_BASE"/cpu_type")) {
 		current_interface = OP_INTERFACE_26;
 	}
 

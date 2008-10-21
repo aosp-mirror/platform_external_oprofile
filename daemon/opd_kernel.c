@@ -145,7 +145,7 @@ void opd_reread_module_info(void)
 			continue;
 		}
 
-		ret = sscanf(line, "%256s %u %32s %4096s %32s %llx",
+		ret = sscanf(line, "%256s %u %31s %4095s %31s %llx",
 			     module_name, &module_size, ref_count,
 			     dependencies, live_info, &start_address);
 		if (ret != 6) {
