@@ -7,6 +7,9 @@
  *
  * @author John Levon
  * @author Philippe Elie
+ * Modified by Aravind Menon for Xen
+ * These modifications are:
+ * Copyright (C) 2005 Hewlett-Packard Co.
  */
 
 #include "config.h"
@@ -43,6 +46,7 @@
 sig_atomic_t signal_alarm;
 sig_atomic_t signal_hup;
 sig_atomic_t signal_term;
+sig_atomic_t signal_child;
 sig_atomic_t signal_usr1;
 sig_atomic_t signal_usr2;
 
@@ -60,6 +64,10 @@ int separate_cpu;
 int no_vmlinux;
 char * vmlinux;
 char * kernel_range;
+char * session_dir;
+int no_xen;
+char * xenimage;
+char * xen_range;
 static char * verbose;
 static char * binary_name_filter;
 static char * events;
@@ -72,9 +80,12 @@ extern struct oprofiled_ops opd_26_ops;
 static struct list_head images_filter[OPD_IMAGE_FILTER_HASH_SIZE];
 
 static struct poptOption options[] = {
+	{ "session-dir", 0, POPT_ARG_STRING, &session_dir, 0, "place sample database in dir instead of default location", "/var/lib/oprofile", },
 	{ "kernel-range", 'r', POPT_ARG_STRING, &kernel_range, 0, "Kernel VMA range", "start-end", },
 	{ "vmlinux", 'k', POPT_ARG_STRING, &vmlinux, 0, "vmlinux kernel image", "file", },
 	{ "no-vmlinux", 0, POPT_ARG_NONE, &no_vmlinux, 0, "vmlinux kernel image file not available", NULL, },
+	{ "xen-range", 0, POPT_ARG_STRING, &xen_range, 0, "Xen VMA range", "start-end", },
+	{ "xen-image", 0, POPT_ARG_STRING, &xenimage, 0, "Xen image", "file", },
 	{ "image", 0, POPT_ARG_STRING, &binary_name_filter, 0, "image name filter", "profile these comma separated image" },
 	{ "separate-lib", 0, POPT_ARG_INT, &separate_lib, 0, "separate library samples for each distinct application", "[0|1]", },
 	{ "separate-kernel", 0, POPT_ARG_INT, &separate_kernel, 0, "separate kernel samples for each distinct application", "[0|1]", },
@@ -90,7 +101,7 @@ static struct poptOption options[] = {
 
 void opd_open_logfile(void)
 {
-	if (open(OP_LOG_FILE, O_WRONLY|O_CREAT|O_NOCTTY|O_APPEND, 0755) == -1) {
+	if (open(op_log_file, O_WRONLY|O_CREAT|O_NOCTTY|O_APPEND, 0644) == -1) {
 		perror("oprofiled: couldn't re-open stdout: ");
 		exit(EXIT_FAILURE);
 	}
@@ -129,9 +140,9 @@ static void opd_go_daemon(void)
 {
 	opd_fork();
 
-	if (chdir(OP_BASE_DIR)) {
-		fprintf(stderr, "oprofiled: opd_go_daemon: couldn't chdir to "
-			OP_BASE_DIR ": %s", strerror(errno));
+	if (chdir(op_session_dir)) {
+		fprintf(stderr, "oprofiled: opd_go_daemon: couldn't chdir to %s: %s",
+			op_session_dir, strerror(errno));
 		exit(EXIT_FAILURE);
 	}
 
@@ -146,15 +157,13 @@ static void opd_go_daemon(void)
 
 static void opd_write_abi(void)
 {
-#ifdef OPROF_ABI
 	char * cbuf;
  
-	cbuf = xmalloc(strlen(OP_BASE_DIR) + 5);
-	strcpy(cbuf, OP_BASE_DIR);
+	cbuf = xmalloc(strlen(op_session_dir) + 5);
+	strcpy(cbuf, op_session_dir);
 	strcat(cbuf, "/abi");
 	op_write_abi_to_file(cbuf);
 	free(cbuf);
-#endif
 }
 
 
@@ -177,6 +186,11 @@ static void opd_sighup(int val __attribute__((unused)))
 static void opd_sigterm(int val __attribute__((unused)))
 {
 	signal_term = 1;
+}
+
+static void opd_sigchild(int val __attribute__((unused)))
+{
+	signal_child = 1;
 }
  
 
@@ -225,6 +239,16 @@ static void opd_setup_signals(void)
 		exit(EXIT_FAILURE);
 	}
 
+	act.sa_handler = opd_sigchild;
+	act.sa_flags = 0;
+	sigemptyset(&act.sa_mask);
+	sigaddset(&act.sa_mask, SIGCHLD);
+
+	if (sigaction(SIGCHLD, &act, NULL)) {
+		perror("oprofiled: install of SIGCHLD handler failed: ");
+		exit(EXIT_FAILURE);
+	}
+
 	act.sa_handler = opd_sigusr1;
 	act.sa_flags = 0;
 	sigemptyset(&act.sa_mask);
@@ -241,7 +265,7 @@ static void opd_setup_signals(void)
 	sigaddset(&act.sa_mask, SIGTERM);
 
 	if (sigaction(SIGUSR2, &act, NULL)) {
-		perror("oprofiled: install of SIGUSR1 handler failed: ");
+		perror("oprofiled: install of SIGUSR2 handler failed: ");
 		exit(EXIT_FAILURE);
 	}
 }
@@ -407,7 +431,26 @@ static void opd_options(int argc, char const * argv[])
 		poptPrintHelp(optcon, stderr, 0);
 		exit(EXIT_FAILURE);
 	}
-	
+
+	if (!xenimage || !strcmp("", xenimage)) {
+		no_xen = 1;
+	} else {
+		no_xen = 0;
+
+		/* canonicalise xen image filename. */
+		tmp = xmalloc(PATH_MAX);
+		if (realpath(xenimage, tmp))
+			xenimage = tmp;
+		else
+			free(tmp);
+
+		if (!xen_range || !strcmp("", xen_range)) {
+			fprintf(stderr, "oprofiled: no Xen VMA range specified.\n");
+			poptPrintHelp(optcon, stderr, 0);
+			exit(EXIT_FAILURE);
+		}
+	}
+
 	opd_parse_events(events);
 
 	opd_parse_image_filter();
@@ -422,10 +465,11 @@ static void opd_options(int argc, char const * argv[])
 static struct oprofiled_ops * get_ops(void)
 {
 	switch (op_get_interface()) {
+#ifndef ANDROID
 		case OP_INTERFACE_24:
 			printf("Using 2.4 OProfile kernel interface.\n");
-			//return &opd_24_ops;
-            return 0; // android. we should never need that.
+			return &opd_24_ops;
+#endif
 		case OP_INTERFACE_26:
 			printf("Using 2.6+ OProfile kernel interface.\n");
 			return &opd_26_ops;
@@ -445,13 +489,13 @@ int main(int argc, char const * argv[])
 	struct rlimit rlim = { 2048, 2048 };
 
 	opd_options(argc, argv);
+	init_op_config_dirs(session_dir);
 
 	opd_setup_signals();
 
 	err = setrlimit(RLIMIT_NOFILE, &rlim);
-	if (err) {
+	if (err)
 		perror("warning: could not set RLIMIT_NOFILE to 2048: ");
-	}
 
 	opd_write_abi();
 
@@ -464,9 +508,9 @@ int main(int argc, char const * argv[])
 	/* clean up every 10 minutes */
 	alarm(60 * 10);
 
-	if (op_write_lock_file(OP_LOCK_FILE)) {
-		fprintf(stderr, "oprofiled: could not create lock file "
-			OP_LOCK_FILE "\n");
+	if (op_write_lock_file(op_lock_file)) {
+		fprintf(stderr, "oprofiled: could not create lock file %s\n",
+			op_lock_file);
 		exit(EXIT_FAILURE);
 	}
 

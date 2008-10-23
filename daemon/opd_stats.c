@@ -9,12 +9,10 @@
  * @author Philippe Elie
  */
 
-#include "config.h"
 #include "opd_stats.h"
 #include "oprofiled.h"
 
 #include "op_get_time.h"
-#include "op_config.h"
 
 #include <dirent.h>
 #include <stdlib.h>
@@ -53,22 +51,22 @@ void opd_print_stats(void)
 	printf("Nr. samples lost due to no permanent mapping: %lu\n",
 		opd_stats[OPD_LOST_NO_MAPPING]);
 	print_if("Nr. event lost due to buffer overflow: %u\n",
-	       OP_DRIVER_BASE"/stats", "event_lost_overflow", 1);
+	       "/dev/oprofile/stats", "event_lost_overflow", 1);
 	print_if("Nr. samples lost due to no mapping: %u\n",
-	       OP_DRIVER_BASE"/stats", "sample_lost_no_mapping", 1);
+	       "/dev/oprofile/stats", "sample_lost_no_mapping", 1);
 	print_if("Nr. backtraces skipped due to no file mapping: %u\n",
-	       OP_DRIVER_BASE"/stats", "bt_lost_no_mapping", 0);
+	       "/dev/oprofile/stats", "bt_lost_no_mapping", 0);
 	print_if("Nr. samples lost due to no mm: %u\n",
-	       OP_DRIVER_BASE"/stats", "sample_lost_no_mm", 1);
+	       "/dev/oprofile/stats", "sample_lost_no_mm", 1);
 
-	if (!(dir = opendir(OP_DRIVER_BASE"/stats/")))
+	if (!(dir = opendir("/dev/oprofile/stats/")))
 		goto out;
 	while ((dirent = readdir(dir))) {
 		int cpu_nr;
 		char path[256];
 		if (sscanf(dirent->d_name, "cpu%d", &cpu_nr) != 1)
 			continue;
-		snprintf(path, 256, OP_DRIVER_BASE"/stats/%s", dirent->d_name);
+		snprintf(path, 256, "/dev/oprofile/stats/%s", dirent->d_name);
 
 		print_if("Nr. samples lost cpu buffer overflow: %u\n",
 		     path, "sample_lost_overflow", 1);
@@ -78,6 +76,8 @@ void opd_print_stats(void)
 		     path, "sample_received", 1);
 		print_if("Nr. backtrace aborted: %u\n", 
 		     path, "backtrace_aborted", 0);
+		print_if("Nr. samples lost invalid pc: %u\n", 
+		     path, "sample_invalid_eip", 0);
 	}
 	closedir(dir);
 out:

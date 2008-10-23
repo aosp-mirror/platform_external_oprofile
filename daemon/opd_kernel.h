@@ -7,6 +7,9 @@
  *
  * @author John Levon
  * @author Philippe Elie
+ * Modified by Aravind Menon for Xen
+ * These modifications are:
+ * Copyright (C) 2005 Hewlett-Packard Co.
  */
 
 #ifndef OPD_KERNEL_H
@@ -19,6 +22,8 @@ struct transient;
 
 /** create the kernel image */
 void opd_create_vmlinux(char const * name, char const * arg);
+
+void opd_create_xen(char const * name, char const * arg);
 
 /** opd_reread_module_info - parse /proc/modules for kernel modules */
 void opd_reread_module_info(void);

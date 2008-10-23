@@ -135,14 +135,28 @@ void * odb_get_data(odb_t * odb);
 /** issue a msync on the used size of the mmaped file */
 void odb_sync(odb_t const * odb);
 
-/** add a page returning its index. Take care all page pointer can be
- * invalidated by this call !
- * returns the index of the created node on success or
- * ODB_NODE_NR_INVALID on failure, in this case this function do nothing
- * and errno is set by the first libc call failure allowing to retry after
- * cleanup some program resource.
+/**
+ * grow the hashtable in such way current_size is the index of the first free
+ * node. Take care all node pointer can be invalidated by this call.
+ *
+ * Node allocation is done in a two step way 1st) ensure a free node exist
+ * eventually, caller can setup it, 2nd) commit the node allocation with
+ * odb_commit_reservation().
+ * This is done in this way to ensure node setup is visible from another
+ * process like pp tools in an atomic way.
+ *
+ * returns 0 on success, non zero on failure in this case this function do
+ * nothing and errno is set by the first libc call failure allowing to retry
+ * after cleanup some program resource.
  */
-odb_node_nr_t odb_hash_add_node(odb_t * odb);
+int odb_grow_hashtable(odb_data_t * data);
+/**
+ * commit a previously successfull node reservation. This can't fail.
+ */
+static __inline void odb_commit_reservation(odb_data_t * data)
+{
+	++data->descr->current_size;
+}
 
 /** "immpossible" node number to indicate an error from odb_hash_add_node() */
 #define ODB_NODE_NR_INVALID ((odb_node_nr_t)-1)
@@ -158,11 +172,19 @@ void odb_hash_display_stat(odb_hash_stat_t const * stats);
 void odb_hash_free_stat(odb_hash_stat_t * stats);
 
 /* db_insert.c */
-/** insert info at key, if key already exist the info is added to the
- * existing samples
+/** update info at key by incrementing its associated value by one, 
+ * if the key does not exist a new node is created and the value associated
+ * is set to one.
+ *
  * returns EXIT_SUCCESS on success, EXIT_FAILURE on failure
  */
-int odb_insert(odb_t * odb, odb_key_t key, odb_value_t value);
+int odb_update_node(odb_t * odb, odb_key_t key);
+
+/** Add a new node w/o regarding if a node with the same key already exists
+ *
+ * returns EXIT_SUCCESS on success, EXIT_FAILURE on failure
+ */
+int odb_add_node(odb_t * odb, odb_key_t key, odb_value_t value);
 
 /* db_travel.c */
 /**
@@ -171,13 +193,11 @@ int odb_insert(odb_t * odb, odb_key_t key, odb_value_t value);
  *
  * odb_node_nr_t node_nr, pos;
  * odb_node_t * node = odb_get_iterator(odb, &node_nr);
- *	for ( pos = 0 ; pos < node_nr ; ++pos) {
- *		if (node[pos].key) {
- *			// do something
- *		}
- *	}
+ *	for ( pos = 0 ; pos < node_nr ; ++pos)
+ *		// do something
  *
- *  note than caller *must* filter nil key.
+ *  note than caller does not need to filter nil key as it's a valid key,
+ * The returned range is all valid (i.e. should never contain zero value).
  */
 odb_node_t * odb_get_iterator(odb_t const * odb, odb_node_nr_t * nr);
 

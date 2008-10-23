@@ -34,6 +34,7 @@ extern "C" {
 /* some system have a libiberty.a but no libiberty.h so we must provide
  * ourself the missing proto */
 #ifndef HAVE_LIBIBERTY_H
+
 /* Set the program name used by xmalloc.  */
 void xmalloc_set_program_name(char const *);
 
@@ -62,6 +63,14 @@ char * xstrdup(char const *) OP_ATTRIB_MALLOC;
 void * xmemdup(void const *, size_t, size_t) OP_ATTRIB_MALLOC;
 
 #endif	/* !HAVE_LIBIBERTY_H */
+
+#ifdef ANDROID
+#define xmalloc(s)      malloc(s)
+#define xrealloc(p,s)   realloc(p,s)
+#define xstrdup(str)    strdup(str)
+#define xmalloc_set_program_name(n)
+#endif
+
 
 #ifdef __cplusplus
 }

@@ -7,6 +7,7 @@ LOCAL_SRC_FILES:= \
 	op_file.c \
 	op_fileio.c \
 	op_get_time.c \
+	op_growable_buffer.c \
 	op_libiberty.c \
 	op_lockfile.c \
 	op_popt.c \

@@ -11,11 +11,14 @@
 #define _GNU_SOURCE
 
 #include <stdlib.h>
+#ifndef ANDROID
+#include <sys/fcntl.h>
+#else
 #include <fcntl.h>
+#endif
 #include <sys/mman.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <fcntl.h>
 #include <unistd.h>
 #include <errno.h>
 #include <string.h>
@@ -61,65 +64,60 @@ static unsigned int tables_size(odb_data_t const * data, odb_node_nr_t node_nr)
 }
 
 
-odb_index_t odb_hash_add_node(odb_t * odb)
+int odb_grow_hashtable(odb_data_t * data)
 {
-	odb_data_t * data = odb->data;
+	unsigned int old_file_size;
+	unsigned int new_file_size;
+	unsigned int pos;
+	void * new_map;
 
-	if (data->descr->current_size >= data->descr->size) {
-		unsigned int old_file_size;
-		unsigned int new_file_size;
-		unsigned int pos;
-		void * new_map;
+	old_file_size = tables_size(data, data->descr->size);
+	new_file_size = tables_size(data, data->descr->size * 2);
 
-		old_file_size = tables_size(data, data->descr->size);
-		new_file_size = tables_size(data, data->descr->size * 2);
+	if (ftruncate(data->fd, new_file_size))
+		return 1;
 
-		if (ftruncate(data->fd, new_file_size))
-			return ODB_NODE_NR_INVALID;
+	new_map = mremap(data->base_memory,
+			 old_file_size, new_file_size, MREMAP_MAYMOVE);
 
-		new_map = mremap(data->base_memory,
-				old_file_size, new_file_size, MREMAP_MAYMOVE);
+	if (new_map == MAP_FAILED)
+		return 1;
 
-		if (new_map == MAP_FAILED)
-			return ODB_NODE_NR_INVALID;
+	data->base_memory = new_map;
+	data->descr = odb_to_descr(data);
+	data->descr->size *= 2;
+	data->node_base = odb_to_node_base(data);
+	data->hash_base = odb_to_hash_base(data);
+	data->hash_mask = (data->descr->size * BUCKET_FACTOR) - 1;
 
-		data->base_memory = new_map;
-		data->descr = odb_to_descr(data);
-		data->descr->size *= 2;
-		data->node_base = odb_to_node_base(data);
-		data->hash_base = odb_to_hash_base(data);
-		data->hash_mask = (data->descr->size * BUCKET_FACTOR) - 1;
-
-		/* rebuild the hash table, node zero is never used. This works
-		 * because layout of file is node table then hash table,
-		 * sizeof(node) > sizeof(bucket) and when we grow table we
-		 * double size ==> old hash table and new hash table can't
-		 * overlap so on the new hash table is entirely in the new
-		 * memory area (the grown part) and we know the new hash
-		 * hash table is zeroed. That's why we don't need to zero init
-		 * the new table */
-		/* OK: the above is not exact
-		 * if BUCKET_FACTOR < sizeof(bd_node_t) / sizeof(bd_node_nr_t)
-		 * all things are fine and we don't need to init the hash
-		 * table because in this case the new hash table is completely
-		 * inside the new growed part. Avoiding to touch this memory is
-		 * useful.
-		 */
+	/* rebuild the hash table, node zero is never used. This works
+	 * because layout of file is node table then hash table,
+	 * sizeof(node) > sizeof(bucket) and when we grow table we
+	 * double size ==> old hash table and new hash table can't
+	 * overlap so on the new hash table is entirely in the new
+	 * memory area (the grown part) and we know the new hash
+	 * hash table is zeroed. That's why we don't need to zero init
+	 * the new table */
+	/* OK: the above is not exact
+	 * if BUCKET_FACTOR < sizeof(bd_node_t) / sizeof(bd_node_nr_t)
+	 * all things are fine and we don't need to init the hash
+	 * table because in this case the new hash table is completely
+	 * inside the new growed part. Avoiding to touch this memory is
+	 * useful.
+	 */
 #if 0
-		for (pos = 0 ; pos < data->descr->size*BUCKET_FACTOR ; ++pos) {
-			data->hash_base[pos] = 0;
-		}
+	for (pos = 0 ; pos < data->descr->size*BUCKET_FACTOR ; ++pos)
+		data->hash_base[pos] = 0;
 #endif
 
-		for (pos = 1; pos < data->descr->current_size; ++pos) {
-			odb_node_t * node = &data->node_base[pos];
-			size_t index = odb_do_hash(data, node->key);
-			node->next = data->hash_base[index];
-			data->hash_base[index] = pos;
-		}
+	for (pos = 1; pos < data->descr->current_size; ++pos) {
+		odb_node_t * node = &data->node_base[pos];
+		size_t index = odb_do_hash(data, node->key);
+		node->next = data->hash_base[index];
+		data->hash_base[index] = pos;
 	}
 
-	return (odb_index_t)data->descr->current_size++;
+	return 0;
 }
 
 

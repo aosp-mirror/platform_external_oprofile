@@ -16,7 +16,9 @@
 extern "C" {
 #endif
 
-/** supported cpu type */
+/**
+ * Supported cpu type.  Always add new CPU types at the very end.
+ */
 typedef enum {
 	CPU_NO_GOOD = -1, /**< unsupported CPU type */
 	CPU_PPRO, /**< Pentium Pro */
@@ -41,8 +43,13 @@ typedef enum {
 	CPU_ARM_XSCALE2, /**< ARM XScale 2 */
 	CPU_PPC64_POWER4, /**< ppc64 POWER4 family */
 	CPU_PPC64_POWER5, /**< ppc64 POWER5 family */
+	CPU_PPC64_POWER5p, /**< ppc64 Power5+ family */
 	CPU_PPC64_970, /**< ppc64 970 family */
+	CPU_MIPS_20K, /**< MIPS 20K */
 	CPU_MIPS_24K, /**< MIPS 24K */
+	CPU_MIPS_25K, /**< MIPS 25K */
+	CPU_MIPS_34K, /**< MIPS 34K */
+	CPU_MIPS_5K, /**< MIPS 5K */
 	CPU_MIPS_R10000, /**< MIPS R10000 */
 	CPU_MIPS_R12000, /**< MIPS R12000 */
 	CPU_MIPS_RM7000, /**< QED  RM7000 */
@@ -51,6 +58,20 @@ typedef enum {
 	CPU_MIPS_VR5432, /**< NEC VR5432 */
 	CPU_MIPS_VR5500, /**< MIPS VR5500, VR5532 and VR7701 */
 	CPU_PPC_E500,	/**< e500 */
+	CPU_PPC_E500_2,	/**< e500v2 */
+	CPU_CORE, /**< Core Solo / Duo series */
+	CPU_PPC_7450, /**< PowerPC G4 */
+	CPU_CORE_2, /**< Intel Core 2 */
+	CPU_PPC64_POWER6, /**< ppc64 POWER6 family */
+	CPU_PPC64_970MP, /**< ppc64 970MP */
+	CPU_PPC64_CELL, /**< ppc64 Cell Broadband Engine*/
+	CPU_FAMILY10, /**< AMD family 10 */
+ 	CPU_PPC64_PA6T, /**< ppc64 PA6T */
+	CPU_ARM_MPCORE, /**< ARM MPCore */
+	CPU_ARM_V6, /**< ARM V6 */
+	CPU_PPC64_POWER5pp,  /**< ppc64 Power5++ family */
+	CPU_PPC_E300, /**< e300 */
+	CPU_AVR32, /**< AVR32 */
 	MAX_CPU_TYPE
 } op_cpu;
 

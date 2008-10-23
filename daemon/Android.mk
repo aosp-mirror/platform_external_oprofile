@@ -9,20 +9,22 @@ LOCAL_SRC_FILES:= \
 	opd_kernel.c \
 	opd_mangling.c \
 	opd_perfmon.c \
+	opd_pipe.c \
 	opd_sfile.c \
+	opd_spu.c \
 	opd_stats.c \
 	opd_trans.c \
 	oprofiled.c
 
 LOCAL_STATIC_LIBRARIES := \
-	libpopt libutil libdb libabic libop
+	libpopt libutil libdb libabi libop
 
 LOCAL_C_INCLUDES := \
 	$(LOCAL_PATH)/.. \
 	$(LOCAL_PATH)/../libdb \
 	$(LOCAL_PATH)/../libutil \
 	$(LOCAL_PATH)/../libop \
-	$(LOCAL_PATH)/../libabic
+	$(LOCAL_PATH)/../libabi
 
 LOCAL_MODULE_PATH := $(TARGET_OUT_OPTIONAL_EXECUTABLES)
 LOCAL_MODULE_TAGS := debug

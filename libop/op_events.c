@@ -39,9 +39,8 @@ static void parse_error(char const * context)
 static int parse_int(char const * str)
 {
 	int value;
-	if (sscanf(str, "%d", &value) != 1) {
+	if (sscanf(str, "%d", &value) != 1)
 		parse_error("expected decimal value");
-	}
 
 	return value;
 }
@@ -50,9 +49,11 @@ static int parse_int(char const * str)
 static int parse_hex(char const * str)
 {
 	int value;
-	if (sscanf(str, "%x", &value) != 1) {
+	/* 0x/0X to force the use of hexa notation for field intended to
+	   be in hexadecimal */
+	if (sscanf(str, "0x%x", &value) != 1 &&
+	    sscanf(str, "0X%x", &value) != 1)
 		parse_error("expected hexadecimal value");
-	}
 
 	return value;
 }
@@ -61,9 +62,9 @@ static int parse_hex(char const * str)
 static u64 parse_long_hex(char const * str)
 {
 	u64 value;
-	if (sscanf(str, "%Lx", &value) != 1) {
+	if (sscanf(str, "%Lx", &value) != 1)
 		parse_error("expected long hexadecimal value");
-	}
+
 	fflush(stderr);
 	return value;
 }
@@ -187,12 +188,11 @@ static void read_unit_masks(char const * file)
 			um = new_unit_mask();
 			parse_um(um, line);
 		} else {
-			if (!um) {
+			if (!um)
 				parse_error("no unit mask name line");
-			}
-			if (um->num >= MAX_UNIT_MASK) {
+			if (um->num >= MAX_UNIT_MASK)
 				parse_error("oprofile: maximum unit mask entries exceeded");
-			}
+
 			parse_um_entry(&um->um[um->num], line);
 			++(um->num);
 		}
@@ -259,9 +259,8 @@ static int next_token(char const ** cp, char ** name, char ** value)
 	colon = strchr(colon, ':');
 
 	if (!colon) {
-		if (*c) {
+		if (*c)
 			parse_error("next_token(): garbage at end of line");
-		}
 		return 0;
 	}
 
@@ -337,6 +336,10 @@ static void read_events(char const * file)
 				if (seen_name)
 					parse_error("duplicate name: tag");
 				seen_name = 1;
+				if (strchr(value, '/') != NULL)
+					parse_error("invalid event name");
+				if (strchr(value, '.') != NULL)
+					parse_error("invalid event name");
 				event->name = value;
 			} else if (strcmp(name, "event") == 0) {
 				if (seen_event)
@@ -385,7 +388,7 @@ next:
 static void check_unit_mask(struct op_unit_mask const * um,
 	char const * cpu_name)
 {
-	u16 i;
+	u32 i;
 
 	if (!um->used) {
 		fprintf(stderr, "um %s is not used\n", um->name);
@@ -397,10 +400,10 @@ static void check_unit_mask(struct op_unit_mask const * um,
 			"entry (%s)\n", um->name, cpu_name);
 		exit(EXIT_FAILURE);
 	} else if (um->unit_type_mask == utm_bitmask) {
-		u16 default_mask = um->default_mask;
-		for (i = 0; i < um->num; ++i) {
+		u32 default_mask = um->default_mask;
+		for (i = 0; i < um->num; ++i)
 			default_mask &= ~um->um[i].value;
-		}
+
 		if (default_mask) {
 			fprintf(stderr, "um %s default mask is not valid "
 				"(%s)\n", um->name, cpu_name);
@@ -519,7 +522,7 @@ void op_free_events(void)
 }
 
 
-static struct op_event * find_event(u8 nr)
+static struct op_event * find_event(u32 nr)
 {
 	struct list_head * pos;
 
@@ -557,7 +560,7 @@ static FILE * open_event_mapping_file(char const * cpu_name)
 /**
  *  This function is PPC64-specific.
  */
-static char const * get_mapping(u8 nr, FILE * fp) 
+static char const * get_mapping(u32 nr, FILE * fp) 
 {
 	char * line;
 	char * name;
@@ -587,14 +590,13 @@ static char const * get_mapping(u8 nr, FILE * fp)
 		c = line;
 		while (next_token(&c, &name, &value)) {
 			if (strcmp(name, "event") == 0) {
-				u8 evt;
+				u32 evt;
 				if (seen_event)
 					parse_error("duplicate event tag");
 				seen_event = 1;
 				evt = parse_hex(value);
-				if (evt == nr) {
+				if (evt == nr)
 					event_found = 1;
-				}
 				free(value);
 			} else if (strcmp(name, "mmcr0") == 0) {
 				if (seen_mmcr0)
@@ -639,15 +641,20 @@ next:
 }
 
 
-char const * find_mapping_for_event(u8 nr, op_cpu cpu_type)
+char const * find_mapping_for_event(u32 nr, op_cpu cpu_type)
 {
 	char const * cpu_name = op_get_cpu_name(cpu_type);
 	FILE * fp = open_event_mapping_file(cpu_name);
 	char const * map = NULL;
 	switch (cpu_type) {
+		case CPU_PPC64_PA6T:
 		case CPU_PPC64_970:
+		case CPU_PPC64_970MP:
 		case CPU_PPC64_POWER4:
 		case CPU_PPC64_POWER5:
+		case CPU_PPC64_POWER5p:
+		case CPU_PPC64_POWER5pp:
+		case CPU_PPC64_POWER6:
 			if (!fp) {
 				fprintf(stderr, "oprofile: could not open event mapping file %s\n", filename);
 				exit(EXIT_FAILURE);
@@ -680,7 +687,7 @@ struct op_event * find_event_by_name(char const * name)
 }
 
 
-struct op_event * op_find_event(op_cpu cpu_type, u8 nr)
+struct op_event * op_find_event(op_cpu cpu_type, u32 nr)
 {
 	struct op_event * event;
 
@@ -692,7 +699,7 @@ struct op_event * op_find_event(op_cpu cpu_type, u8 nr)
 }
 
 
-int op_check_events(int ctr, u8 nr, u16 um, op_cpu cpu_type)
+int op_check_events(int ctr, u32 nr, u32 um, op_cpu cpu_type)
 {
 	int ret = OP_OK_EVENT;
 	struct op_event * event;
@@ -747,8 +754,11 @@ void op_default_event(op_cpu cpu_type, struct op_default_event_descr * descr)
 		case CPU_PII:
 		case CPU_PIII:
 		case CPU_P6_MOBILE:
+		case CPU_CORE:
+		case CPU_CORE_2:
 		case CPU_ATHLON:
 		case CPU_HAMMER:
+		case CPU_FAMILY10:
 			descr->name = "CPU_CLK_UNHALTED";
 			break;
 
@@ -781,17 +791,40 @@ void op_default_event(op_cpu cpu_type, struct op_default_event_descr * descr)
 		// we could possibly use the CCNT
 		case CPU_ARM_XSCALE1:
 		case CPU_ARM_XSCALE2:
+		case CPU_ARM_MPCORE:
+		case CPU_ARM_V6:
+		case CPU_AVR32:
 			descr->name = "CPU_CYCLES";
 			break;
 
+		case CPU_PPC64_PA6T:
 		case CPU_PPC64_970:
+		case CPU_PPC64_970MP:
+		case CPU_PPC_7450:
 		case CPU_PPC64_POWER4:
 		case CPU_PPC64_POWER5:
+		case CPU_PPC64_POWER6:
+		case CPU_PPC64_POWER5p:
+		case CPU_PPC64_POWER5pp:
+		case CPU_PPC64_CELL:
+			descr->name = "CYCLES";
+			break;
+
+		case CPU_MIPS_20K:
 			descr->name = "CYCLES";
 			break;
 
 		case CPU_MIPS_24K:
 			descr->name = "INSTRUCTIONS";
+			break;
+
+		case CPU_MIPS_34K:
+			descr->name = "INSTRUCTIONS";
+			break;
+
+		case CPU_MIPS_5K:
+		case CPU_MIPS_25K:
+			descr->name = "CYCLES";
 			break;
 
 		case CPU_MIPS_R10000:
@@ -814,9 +847,11 @@ void op_default_event(op_cpu cpu_type, struct op_default_event_descr * descr)
 			break;
 
 		case CPU_PPC_E500:
+		case CPU_PPC_E500_2:
+		case CPU_PPC_E300:
 			descr->name = "CPU_CLK";
 			break;
-             
+
 		// don't use default, if someone add a cpu he wants a compiler
 		// warning if he forgets to handle it here.
 		case CPU_TIMER_INT:

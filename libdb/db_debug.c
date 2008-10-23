@@ -26,9 +26,9 @@ static int check_circular_list(odb_data_t const * data)
 		odb_index_t index = data->hash_base[pos];
 		if (index && !do_abort) {
 			while (index) {
-				if (bitmap[index]) {
+				if (bitmap[index])
 					do_abort = 1;
-				}
+
 				bitmap[index] = 1;
 				index = data->node_base[index].next;
 			}
@@ -43,9 +43,9 @@ static int check_circular_list(odb_data_t const * data)
 			index = data->hash_base[pos];
 			while (index) {
 				printf("%d ", index);
-				if (bitmap[index]) {
+				if (bitmap[index])
 					exit(1);
-				}
+
 				bitmap[index] = 1;
 				index = data->node_base[index].next;
 			}
@@ -122,13 +122,11 @@ int odb_check_hash(odb_t const * odb)
 		ret = 1;
 	}
 
-	if (ret == 0) {
+	if (ret == 0)
 		ret = check_circular_list(data);
-	}
 
-	if (ret == 0) {
+	if (ret == 0)
 		ret = check_redundant_key(data, max);
-	}
 
 	return ret;
 }

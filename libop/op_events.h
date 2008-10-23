@@ -28,8 +28,8 @@ enum unit_mask_type {
 	utm_bitmask		/**< bitmask */
 };
 
-/** up to sixteen allowed unit masks */
-#define MAX_UNIT_MASK 16
+/** up to thirty two allowed unit masks */
+#define MAX_UNIT_MASK 32
 
 
 /** Describe an unit mask. */
@@ -37,9 +37,9 @@ struct op_unit_mask {
 	char * name;		/**< name of unit mask type */
 	u32 num;		/**< number of possible unit masks */
 	enum unit_mask_type unit_type_mask;
-	u16 default_mask;	/**< only the gui use it */
+	u32 default_mask;	/**< only the gui use it */
 	struct op_described_um {
-		u16 value;
+		u32 value;
 		char * desc;
 	} um[MAX_UNIT_MASK];
 	struct list_head um_next; /**< next um in list */
@@ -50,7 +50,7 @@ struct op_unit_mask {
 /** Describe an event. */
 struct op_event {
 	u32 counter_mask;	/**< bitmask of allowed counter  */
-	u8 val;			/**< event number */
+	u32 val;		/**< event number */
 	/** which unit mask if any allowed */
 	struct op_unit_mask * unit;			
 	char * name;		/**< the event name */
@@ -63,7 +63,7 @@ struct op_event {
 struct list_head * op_events(op_cpu cpu_type);
 
 /** Find a given event, returns NULL on error */
-struct op_event * op_find_event(op_cpu cpu_type, u8 nr);
+struct op_event * op_find_event(op_cpu cpu_type, u32 nr);
 
 /** Find a given event by name */
 struct op_event * find_event_by_name(char const * name);
@@ -72,7 +72,7 @@ struct op_event * find_event_by_name(char const * name);
  * Find a mapping for a given event ID for architectures requiring additional information
  * from what is held in the events file. 
  */
-char const * find_mapping_for_event(u8 val, op_cpu cpu_type);
+char const * find_mapping_for_event(u32 val, op_cpu cpu_type);
 
 
 /** op_check_events() return code */
@@ -96,7 +96,7 @@ enum op_event_check {
  *
  * \sa op_cpu, OP_EVENTS_OK
  */
-int op_check_events(int ctr, u8 event, u16 um, op_cpu cpu_type);
+int op_check_events(int ctr, u32 event, u32 um, op_cpu cpu_type);
 
 /**
  * free memory used by any call to above function. Need to be called only once

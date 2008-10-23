@@ -9,14 +9,11 @@
  * @author Philippe Elie
  */
 
-#include "config.h"
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "op_cpu_type.h"
-#include "op_config.h"
 
 struct cpu_descr {
 	char const * pretty;
@@ -48,8 +45,13 @@ static struct cpu_descr const cpu_descrs[MAX_CPU_TYPE] = {
 	{ "ARM/XScale PMU2", "arm/xscale2", CPU_ARM_XSCALE2, 5 },
 	{ "ppc64 POWER4", "ppc64/power4", CPU_PPC64_POWER4, 8 },
 	{ "ppc64 POWER5", "ppc64/power5", CPU_PPC64_POWER5, 6 },
+	{ "ppc64 POWER5+", "ppc64/power5+", CPU_PPC64_POWER5p, 6 },
 	{ "ppc64 970", "ppc64/970", CPU_PPC64_970, 8 },
+	{ "MIPS 20K", "mips/20K", CPU_MIPS_20K, 1},
 	{ "MIPS 24K", "mips/24K", CPU_MIPS_24K, 2},
+	{ "MIPS 25K", "mips/25K", CPU_MIPS_25K, 2},
+	{ "MIPS 34K", "mips/34K", CPU_MIPS_34K, 4},
+	{ "MIPS 5K", "mips/5K", CPU_MIPS_5K, 2},
 	{ "MIPS R10000", "mips/r10000", CPU_MIPS_R10000, 2 },
 	{ "MIPS R12000", "mips/r12000", CPU_MIPS_R12000, 4 },
 	{ "QED RM7000", "mips/rm7000", CPU_MIPS_RM7000, 1 },
@@ -58,6 +60,20 @@ static struct cpu_descr const cpu_descrs[MAX_CPU_TYPE] = {
 	{ "NEC VR5432", "mips/vr5432", CPU_MIPS_VR5432, 2 },
 	{ "NEC VR5500", "mips/vr5500", CPU_MIPS_VR5500, 2 },
 	{ "e500", "ppc/e500", CPU_PPC_E500, 4 },
+	{ "e500v2", "ppc/e500v2", CPU_PPC_E500_2, 4 },
+	{ "Core Solo / Duo", "i386/core", CPU_CORE, 2 },
+	{ "PowerPC G4", "ppc/7450",  CPU_PPC_7450, 6 },
+	{ "Core 2", "i386/core_2", CPU_CORE_2, 2 },
+	{ "ppc64 POWER6", "ppc64/power6", CPU_PPC64_POWER6, 4 },
+	{ "ppc64 970MP", "ppc64/970MP", CPU_PPC64_970MP, 8 },
+	{ "ppc64 Cell Broadband Engine", "ppc64/cell-be", CPU_PPC64_CELL, 8 },
+	{ "AMD64 family10", "x86-64/family10", CPU_FAMILY10, 4 },
+	{ "ppc64 PA6T", "ppc64/pa6t", CPU_PPC64_PA6T, 6 },
+	{ "ARM MPCore", "arm/mpcore", CPU_ARM_MPCORE, 2 },
+	{ "ARM V6 PMU", "arm/armv6", CPU_ARM_V6, 3 },
+	{ "ppc64 POWER5++", "ppc64/power5++", CPU_PPC64_POWER5pp, 6 },
+	{ "e300", "ppc/e300", CPU_PPC_E300, 4 },
+	{ "AVR32", "avr32", CPU_AVR32, 3 },
 };
  
 static size_t const nr_cpu_descrs = sizeof(cpu_descrs) / sizeof(struct cpu_descr);
@@ -71,7 +87,7 @@ op_cpu op_get_cpu_type(void)
 	fp = fopen("/proc/sys/dev/oprofile/cpu_type", "r");
 	if (!fp) {
 		/* Try 2.6's oprofilefs one instead. */
-		fp = fopen(OP_DRIVER_BASE"/cpu_type", "r");
+		fp = fopen("/dev/oprofile/cpu_type", "r");
 		if (!fp) {
 			fprintf(stderr, "Unable to open cpu_type file for reading\n");
 			fprintf(stderr, "Make sure you have done opcontrol --init\n");

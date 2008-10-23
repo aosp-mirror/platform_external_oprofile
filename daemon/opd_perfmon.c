@@ -380,6 +380,7 @@ static void wait_for_child(struct child * child)
 	close(child->up_pipe[1]);
 }
 
+static struct child* xen_ctx;
 
 void perfmon_init(void)
 {
@@ -388,6 +389,24 @@ void perfmon_init(void)
 
 	if (cpu_type == CPU_TIMER_INT)
 		return;
+
+	if (!no_xen) {
+		xen_ctx = xmalloc(sizeof(struct child));
+		xen_ctx->pid = getpid();
+		xen_ctx->up_pipe[0] = -1;
+		xen_ctx->up_pipe[1] = -1;
+		xen_ctx->sigusr1 = 0;
+		xen_ctx->sigusr2 = 0;
+		xen_ctx->sigterm = 0;
+
+		create_context(xen_ctx);
+
+		write_pmu(xen_ctx);
+		
+		load_context(xen_ctx);
+		return;
+	}
+	
 
 	nr = sysconf(_SC_NPROCESSORS_ONLN);
 	if (nr == -1) {
@@ -431,6 +450,9 @@ void perfmon_exit(void)
 	if (cpu_type == CPU_TIMER_INT)
 		return;
 
+	if (!no_xen)
+		return;
+
 	for (i = 0; i < nr_cpus; ++i) {
 		kill(children[i].pid, SIGKILL);
 		waitpid(children[i].pid, NULL, 0);
@@ -445,6 +467,11 @@ void perfmon_start(void)
 	if (cpu_type == CPU_TIMER_INT)
 		return;
 
+	if (!no_xen) {
+		perfmon_start_child(xen_ctx->ctx_fd);
+		return;
+	}
+
 	for (i = 0; i < nr_cpus; ++i)
 		kill(children[i].pid, SIGUSR1);
 }
@@ -457,6 +484,11 @@ void perfmon_stop(void)
 	if (cpu_type == CPU_TIMER_INT)
 		return;
 
+	if (!no_xen) {
+		perfmon_stop_child(xen_ctx->ctx_fd);
+		return;
+	}
+	
 	for (i = 0; i < nr_cpus; ++i)
 		kill(children[i].pid, SIGUSR2);
 }

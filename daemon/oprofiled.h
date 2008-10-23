@@ -7,6 +7,9 @@
  *
  * @author John Levon
  * @author Philippe Elie
+ * Modified by Aravind Menon for Xen
+ * These modifications are:
+ * Copyright (C) 2005 Hewlett-Packard Co.
  */
 
 #ifndef OPROFILED_H
@@ -47,6 +50,7 @@ int opd_read_fs_int(char const * path, char const * name, int is_fatal);
 extern sig_atomic_t signal_alarm;
 extern sig_atomic_t signal_hup;
 extern sig_atomic_t signal_term;
+extern sig_atomic_t signal_child;
 extern sig_atomic_t signal_usr1;
 extern sig_atomic_t signal_usr2;
 
@@ -58,5 +62,8 @@ extern int separate_cpu;
 extern int no_vmlinux;
 extern char * vmlinux;
 extern char * kernel_range;
+extern int no_xen;
+extern char * xenimage;
+extern char * xen_range;
 
 #endif /* OPROFILED_H */

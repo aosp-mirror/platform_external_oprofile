@@ -27,6 +27,9 @@ typedef int fd_t;
 /** generic type for holding addresses */
 typedef unsigned long long vma_t;
 
+/** generic type to hold a sample count in pp tools */
+typedef u64 count_type;
+
 #else
 #include <linux/types.h>
 #endif

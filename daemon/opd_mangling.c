@@ -57,8 +57,10 @@ static char const * get_dep_name(struct sfile const * sf)
 static char * mangle_anon(struct anon_mapping const * anon)
 {
 	char * name = xmalloc(PATH_MAX);
+
 	snprintf(name, 1024, "%u.0x%llx.0x%llx", (unsigned int)anon->tgid,
-	         anon->start, anon->end);
+	       anon->start, anon->end);
+
 	return name;
 }
 
@@ -78,6 +80,7 @@ mangle_filename(struct sfile * last, struct sfile const * sf, int counter, int c
 	} else if (sf->anon) {
 		values.flags |= MANGLE_ANON;
 		values.image_name = mangle_anon(sf->anon);
+		values.anon_name = sf->anon->name;
 	} else {
 		values.image_name = find_cookie(sf->cookie);
 	}
@@ -108,6 +111,7 @@ mangle_filename(struct sfile * last, struct sfile const * sf, int counter, int c
 		} else if (last->anon) {
 			values.flags |= MANGLE_CG_ANON;
 			values.cg_image_name = mangle_anon(last->anon);
+			values.anon_name = last->anon->name;
 		} else {
 			values.cg_image_name = find_cookie(last->cookie);
 		}
@@ -139,6 +143,7 @@ int opd_open_sample_file(odb_t * file, struct sfile * last,
 {
 	char * mangled;
 	char const * binary;
+	int spu_profile = 0;
 	vma_t last_start = 0;
 	int err;
 
@@ -182,10 +187,14 @@ retry:
 	if (last && last->anon)
 		last_start = last->anon->start;
 
+	if (sf->embedded_offset != UNUSED_EMBEDDED_OFFSET)
+		spu_profile = 1;
+
 	fill_header(odb_get_data(file), counter,
 		    sf->anon ? sf->anon->start : 0, last_start,
 		    !!sf->kernel, last ? !!last->kernel : 0,
-	            binary ? op_get_mtime(binary) : 0);
+		    spu_profile, sf->embedded_offset,
+		    binary ? op_get_mtime(binary) : 0);
 
 out:
 	sfile_put(sf);
