@@ -1,9 +1,9 @@
 LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
 
-LOCAL_SRC_FILES:= op_abi.cpp
+LOCAL_SRC_FILES:= op_abi.c
 
-LOCAL_MODULE := libabic
+LOCAL_MODULE := libabi
 
 LOCAL_C_INCLUDES := \
 	$(LOCAL_PATH)/.. \

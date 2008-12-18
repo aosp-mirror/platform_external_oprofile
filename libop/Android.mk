@@ -3,6 +3,7 @@ include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:= \
 	op_alloc_counter.c \
+	op_config.c \
 	op_cpu_type.c \
 	op_events.c \
 	op_get_interface.c \

@@ -7,6 +7,13 @@
  *
  * @author John Levon
  * @author Philippe Elie
+ * Modified by Aravind Menon for Xen
+ * These modifications are:
+ * Copyright (C) 2005 Hewlett-Packard Co.
+ *
+ * Modified by Maynard Johnson <maynardj@us.ibm.com>
+ * These modifications are:
+ * (C) Copyright IBM Corporation 2007
  */
 
 #include "opd_trans.h"
@@ -41,21 +48,7 @@ void clear_trans_current(struct transient * trans)
 }
 
 
-void update_trans_last(struct transient * trans)
-{
-	trans->last = trans->current;
-	trans->last_anon = trans->anon;
-	trans->last_pc = trans->pc;
-}
-
-
-static inline int is_escape_code(uint64_t code)
-{
-	return kernel_pointer_size == 4 ? code == ~0LU : code == ~0LLU;
-}
-
-
-static uint64_t pop_buffer_value(struct transient * trans)
+uint64_t pop_buffer_value(struct transient * trans)
 {
 	uint64_t val;
 
@@ -78,7 +71,7 @@ static uint64_t pop_buffer_value(struct transient * trans)
 }
 
 
-static int enough_remaining(struct transient * trans, size_t size)
+int enough_remaining(struct transient * trans, size_t size)
 {
 	if (trans->remaining >= size)
 		return 1;
@@ -219,9 +212,9 @@ static void code_kernel_enter(struct transient * trans)
 }
 
 
-static void code_kernel_exit(struct transient * trans)
+static void code_user_enter(struct transient * trans)
 {
-	verbprintf(vmisc, "KERNEL_EXIT_SWITCH to user-space\n");
+	verbprintf(vmisc, "USER_ENTER_SWITCH to user-space\n");
 	trans->in_kernel = 0;
 	clear_trans_current(trans);
 	clear_trans_last(trans);
@@ -248,22 +241,44 @@ static void code_trace_begin(struct transient * trans)
 	trans->tracing = TRACING_START;
 }
 
+static void code_xen_enter(struct transient * trans)
+{
+	verbprintf(vmisc, "XEN_ENTER_SWITCH to xen\n");
+	trans->in_kernel = 1;
+	trans->current = NULL;
+	/* subtlety: we must keep trans->cookie cached, even though it's 
+	 * meaningless for Xen - we won't necessarily get a cookie switch 
+	 * on Xen exit. See comments in opd_sfile.c. It seems that we can 
+	 * get away with in_kernel = 1 as long as we supply the correct 
+	 * Xen image, and its address range in startup find_kernel_image 
+	 * is modified to look in the Xen image also
+	 */
+}
 
-typedef void (*handler_t)(struct transient *);
+extern void code_spu_profiling(struct transient * trans);
+extern void code_spu_ctx_switch(struct transient * trans);
 
-static handler_t handlers[LAST_CODE + 1] = {
+handler_t handlers[LAST_CODE + 1] = {
 	&code_unknown,
 	&code_ctx_switch,
 	&code_cpu_switch,
 	&code_cookie_switch,
 	&code_kernel_enter,
-	&code_kernel_exit,
+ 	&code_user_enter,
 	&code_module_loaded,
 	/* tgid handled differently */
 	&code_unknown,
 	&code_trace_begin,
+	&code_unknown,
+ 	&code_xen_enter,
+#if defined(__powerpc__)
+	&code_spu_profiling,
+	&code_spu_ctx_switch,
+#endif
+	&code_unknown,
 };
 
+extern void (*special_processor)(struct transient *);
 
 void opd_process_samples(char const * buffer, size_t count)
 {
@@ -283,6 +298,7 @@ void opd_process_samples(char const * buffer, size_t count)
 		.in_kernel = -1,
 		.cpu = -1,
 		.tid = -1,
+		.embedded_offset = UNUSED_EMBEDDED_OFFSET,
 		.tgid = -1
 	};
 
@@ -292,8 +308,21 @@ void opd_process_samples(char const * buffer, size_t count)
 	 */
 	unsigned long long code;
 
+	if (special_processor) {
+		special_processor(&trans);
+		return;
+	}
+
+    int i;
+
+    for (i = 0; i < count && i < 200; i++) {
+        verbprintf(vmisc, "buffer[%d] is %x\n", i, buffer[i]);
+    }
+
 	while (trans.remaining) {
 		code = pop_buffer_value(&trans);
+
+        verbprintf(vmisc, "In opd_process_samples (code is %lld)\n", code);
 
 		if (!is_escape_code(code)) {
 			opd_put_sample(&trans, code);
@@ -309,6 +338,7 @@ void opd_process_samples(char const * buffer, size_t count)
 		// started with ESCAPE_CODE, next is type
 		code = pop_buffer_value(&trans);
 	
+        verbprintf(vmisc, "next code is %lld\n", code);
 		if (code >= LAST_CODE) {
 			fprintf(stderr, "Unknown code %llu\n", code);
 			abort();

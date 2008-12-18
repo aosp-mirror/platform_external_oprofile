@@ -14,22 +14,24 @@
 #define OP_CONFIG_24_H
 
 #define OP_MOUNT "/proc/sys/dev/oprofile/"
- 
-#define OP_DEVICE OP_BASE_DIR "opdev"
-#define OP_NOTE_DEVICE OP_BASE_DIR "opnotedev"
-#define OP_HASH_DEVICE OP_BASE_DIR "ophashmapdev"
+
+extern char op_device[];
+extern char op_note_device[];
+extern char op_hash_device[];
 
 /*@{\name module default/min/max settings */
 
 /** 65536 * sizeof(op_sample) */
 #define OP_DEFAULT_BUF_SIZE 65536
-/** we don't try to wake-up daemon until it remains more than this free entry
- * in eviction buffer */
+/** 
+ * we don't try to wake-up daemon until it remains more than this free entry
+ * in eviction buffer 
+ */
 #define OP_PRE_WATERMARK(buffer_size)			\
 	(((buffer_size) / 8) < OP_MIN_PRE_WATERMARK	\
 		? OP_MIN_PRE_WATERMARK			\
 		: (buffer_size) / 8)
-/* minimal buffer water mark before we try to wakeup daemon */
+/** minimal buffer water mark before we try to wakeup daemon */
 #define OP_MIN_PRE_WATERMARK 8192
 /** maximum number of entry in samples eviction buffer */
 #define OP_MAX_BUF_SIZE	1048576
@@ -38,13 +40,15 @@
 
 /** 16384 * sizeof(op_note) = 273680 bytes default */
 #define OP_DEFAULT_NOTE_SIZE 16384
-/** we don't try to wake-up daemon until it remains more than this free entry
- * in note buffer */
+/** 
+ * we don't try to wake-up daemon until it remains more than this free entry
+ * in note buffer 
+ */
 #define OP_PRE_NOTE_WATERMARK(note_size)		\
 	(((note_size) / 32) < OP_MIN_NOTE_PRE_WATERMARK	\
 		? OP_MIN_NOTE_PRE_WATERMARK		\
 		: (note_size) / 32)
-/* minimal note buffer water mark before we try to wakeup daemon */
+/** minimal note buffer water mark before we try to wakeup daemon */
 #define OP_MIN_NOTE_PRE_WATERMARK 512
 /** maximum number of entry in note buffer */
 #define OP_MAX_NOTE_TABLE_SIZE	1048576
@@ -58,8 +62,10 @@
 
 /*@}*/
 
-/** nr entries in hash map. This is the maximum number of name components
- * allowed. Must be a prime number */
+/** 
+ * nr entries in hash map. This is the maximum number of name components
+ * allowed. Must be a prime number 
+ */
 #define OP_HASH_MAP_NR 4093
 
 /** size of string pool in bytes */

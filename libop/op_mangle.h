@@ -37,6 +37,7 @@ struct mangle_values {
 	int flags;
 
 	char const * image_name;
+	char const * anon_name;
 	char const * dep_name;
 	char const * cg_image_name;
 	char const * event_name;

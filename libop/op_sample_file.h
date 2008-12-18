@@ -14,6 +14,7 @@
 
 #include "op_types.h"
 
+#include <stdint.h>
 #include <time.h>
 
 /* header of the sample files */
@@ -29,6 +30,9 @@ struct opd_header {
 	double cpu_speed;
 	time_t mtime;
 	u32 cg_to_is_kernel;
+	/* spu_profile=1 says sample file contains Cell BE SPU profile data */
+	u32 spu_profile;
+	uint64_t embedded_offset;
 	u64 anon_start;
 	u64 cg_to_anon_start;
 	/* binary compatibility reserve */

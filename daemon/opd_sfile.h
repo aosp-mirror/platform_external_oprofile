@@ -25,6 +25,7 @@ struct kernel_image;
 struct transient;
 
 #define CG_HASH_SIZE 16
+#define UNUSED_EMBEDDED_OFFSET ~0LLU
 
 /**
  * Each set of sample files (where a set is over the physical counter
@@ -50,6 +51,8 @@ struct sfile {
 	struct kernel_image * kernel;
 	/** anonymous mapping */
 	struct anon_mapping * anon;
+	/** embedded offset for Cell BE SPU */
+	uint64_t embedded_offset;
 
 	/** hash table link */
 	struct list_head hash;
@@ -74,8 +77,10 @@ struct cg_entry {
 /** clear any sfiles that are for the kernel */
 void sfile_clear_kernel(void);
 
-/** clear any sfiles that are for anon mappings */
-void sfile_clear_anon(void);
+struct anon_mapping;
+
+/** clear any sfiles for the given anon mapping */
+void sfile_clear_anon(struct anon_mapping *);
 
 /** sync sample files */
 void sfile_sync_files(void);

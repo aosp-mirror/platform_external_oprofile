@@ -7,6 +7,9 @@
  *
  * @author John Levon
  * @author Philippe Elie
+ * Modified by Aravind Menon for Xen
+ * These modifications are:
+ * Copyright (C) 2005 Hewlett-Packard Co.
  */
 
 #include "opd_kernel.h"
@@ -29,6 +32,8 @@ static LIST_HEAD(modules);
 
 static struct kernel_image vmlinux_image;
 
+static struct kernel_image xen_image;
+
 void opd_create_vmlinux(char const * name, char const * arg)
 {
 	/* vmlinux is *not* on the list of modules */
@@ -50,6 +55,31 @@ void opd_create_vmlinux(char const * name, char const * arg)
 	if (!vmlinux_image.start && !vmlinux_image.end) {
 		fprintf(stderr, "error: mis-parsed kernel range: %llx-%llx\n",
 		        vmlinux_image.start, vmlinux_image.end);
+		exit(EXIT_FAILURE);
+	}
+}
+
+void opd_create_xen(char const * name, char const * arg)
+{
+	/* xen is *not* on the list of modules */
+	list_init(&xen_image.list);
+
+	/* for no xen */
+	if (no_xen) {
+		xen_image.name = "no-xen";
+		return;
+	}
+
+	xen_image.name = xstrdup(name);
+
+	sscanf(arg, "%llx,%llx", &xen_image.start, &xen_image.end);
+
+	verbprintf(vmisc, "xen_start = %llx, xen_end = %llx\n",
+	           xen_image.start, xen_image.end);
+
+	if (!xen_image.start && !xen_image.end) {
+		fprintf(stderr, "error: mis-parsed xen range: %llx-%llx\n",
+		        xen_image.start, xen_image.end);
 		exit(EXIT_FAILURE);
 	}
 }
@@ -112,11 +142,11 @@ void opd_reread_module_info(void)
 	char * line;
 	struct kernel_image * image;
 	int module_size;
-	char ref_count[32];
+	char ref_count[32+1];
 	int ret;
 	char module_name[256+1];
-	char live_info[32];
-	char dependencies[4096];
+	char live_info[32+1];
+	char dependencies[4096+1];
 	unsigned long long start_address;
 
 	if (no_vmlinux)
@@ -145,7 +175,7 @@ void opd_reread_module_info(void)
 			continue;
 		}
 
-		ret = sscanf(line, "%256s %u %31s %4095s %31s %llx",
+		ret = sscanf(line, "%256s %u %32s %4096s %32s %llx",
 			     module_name, &module_size, ref_count,
 			     dependencies, live_info, &start_address);
 		if (ret != 6) {
@@ -191,6 +221,9 @@ struct kernel_image * find_kernel_image(struct transient const * trans)
 		if (image->start <= trans->pc && image->end > trans->pc)
 			return image;
 	}
+
+	if (xen_image.start <= trans->pc && xen_image.end > trans->pc)
+		return &xen_image;
 
 	return NULL;
 }

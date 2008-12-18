@@ -7,6 +7,10 @@
  *
  * @author John Levon
  * @author Philippe Elie
+ *
+ * Modified by Maynard Johnson <maynardj@us.ibm.com>
+ * These modifications are:
+ * (C) Copyright IBM Corporation 2007
  */
 
 #ifndef OPD_TRANS_H
@@ -14,6 +18,8 @@
 
 #include "opd_cookie.h"
 #include "op_types.h"
+
+#include <stdint.h>
 
 struct sfile;
 struct anon_mapping;
@@ -47,7 +53,26 @@ struct transient {
 	unsigned long cpu;
 	pid_t tid;
 	pid_t tgid;
+	uint64_t embedded_offset;
 };
+
+typedef void (*handler_t)(struct transient *);
+extern handler_t handlers[];
+
+uint64_t pop_buffer_value(struct transient * trans);
+int enough_remaining(struct transient * trans, size_t size);
+static inline void update_trans_last(struct transient * trans)
+{
+	trans->last = trans->current;
+	trans->last_anon = trans->anon;
+	trans->last_pc = trans->pc;
+}
+
+extern size_t kernel_pointer_size;
+static inline int is_escape_code(uint64_t code)
+{
+	return kernel_pointer_size == 4 ? code == ~0LU : code == ~0LLU;
+}
 
 void opd_process_samples(char const * buffer, size_t count);
 
