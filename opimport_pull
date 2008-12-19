@@ -1,0 +1,70 @@
+#!/usr/bin/python2.4 -E
+
+import os
+import re
+import sys
+
+def PrintUsage():
+    print "Usage:" + sys.argv[0] + " dir"
+    print "    dir: directory on the host to store profile results"
+
+if (len(sys.argv) != 2):
+    PrintUsage()
+    sys.exit(1)
+
+try:
+    oprofile_event_dir = os.environ['OPROFILE_EVENTS_DIR']
+except:
+    print "OPROFILE_EVENTS_DIR not set. Run \". envsetup.sh\" first"
+    sys.exit(1)
+
+output_dir = sys.argv[1];
+
+try:
+    os.makedirs(output_dir)
+except:
+    if os.path.exists(output_dir):
+        print "Directory already exists:", output_dir
+    else:
+        print "Cannot create", output_dir
+    sys.exit(1)
+
+# get the samples off the phone
+result = os.system("adb pull /data/oprofile/samples " + output_dir + \
+                   "/raw_samples > /dev/null 2>&1")
+if result != 0:
+    print "adb pull failure, exiting"
+    sys.exit(1)
+
+# enter the destination directory
+os.chdir(output_dir)
+stream = os.popen("find raw_samples -type f -name \*all")
+
+# now all the sample files are on the host, we need to invoke opimport one at a
+# time to convert the content from the ARM abi to x86 ABI
+
+# break the full filename into:
+# 1: leading dir: "raw_samples"
+# 2: intermediate dirs: "/blah/blah/blah"
+# 3: filename: e.g. "CPU_CYCLES.150000.0.all.all.all"
+pattern = re.compile("(^raw_samples)(.*)/(.*)$")
+for line in stream:
+    match = pattern.search(line)
+    leading_dir = match.group(1)
+    middle_part = match.group(2)
+    file_name = match.group(3)
+
+    dir = "samples" + middle_part
+
+    # if multiple events are collected the directory could have been setup
+    if not os.path.exists(dir):
+        os.makedirs(dir)
+
+    cmd = oprofile_event_dir + "/bin/opimport -a " + oprofile_event_dir + \
+          "/abi/arm_abi -o samples" + middle_part + "/" + file_name + " " + line
+    os.system(cmd)
+
+stream.close()
+
+# short summary of profiling results
+os.system(oprofile_event_dir + "/bin/opreport --session-dir=.")
