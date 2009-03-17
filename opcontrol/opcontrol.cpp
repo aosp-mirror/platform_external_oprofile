@@ -26,6 +26,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <signal.h>
+#include <sys/stat.h>
 
 #include "op_config.h"
 
