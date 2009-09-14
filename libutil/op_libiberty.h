@@ -34,7 +34,6 @@ extern "C" {
 /* some system have a libiberty.a but no libiberty.h so we must provide
  * ourself the missing proto */
 #ifndef HAVE_LIBIBERTY_H
-
 /* Set the program name used by xmalloc.  */
 void xmalloc_set_program_name(char const *);
 
@@ -70,7 +69,6 @@ void * xmemdup(void const *, size_t, size_t) OP_ATTRIB_MALLOC;
 #define xstrdup(str)    strdup(str)
 #define xmalloc_set_program_name(n)
 #endif
-
 
 #ifdef __cplusplus
 }

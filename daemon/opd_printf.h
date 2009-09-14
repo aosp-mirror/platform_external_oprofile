@@ -22,6 +22,8 @@ extern int vsamples;
 extern int varcs;
 /// kernel module handling
 extern int vmodule;
+/// extended feature
+extern int vext;
 /// all others not fitting in above category, not voluminous.
 extern int vmisc;
 

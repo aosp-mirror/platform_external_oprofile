@@ -16,6 +16,7 @@
 #include "op_fileio.h"
 #include "op_string.h"
 #include "op_cpufreq.h"
+#include "op_hw_specific.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -26,6 +27,24 @@ static LIST_HEAD(um_list);
 
 static char const * filename;
 static unsigned int line_nr;
+
+static void delete_event(struct op_event * event);
+static void read_events(char const * file);
+static void read_unit_masks(char const * file);
+static void free_unit_mask(struct op_unit_mask * um);
+
+static char *build_fn(const char *cpu_name, const char *fn)
+{
+	char *s;
+	static const char *dir;
+	if (dir == NULL)
+		dir = getenv("OPROFILE_EVENTS_DIR");
+	if (dir == NULL)
+		dir = OP_DATADIR;
+	s = xmalloc(strlen(dir) + strlen(cpu_name) + strlen(fn) + 5);
+	sprintf(s, "%s/%s/%s", dir, cpu_name, fn);
+	return s;
+}
 
 static void parse_error(char const * context)
 {
@@ -69,6 +88,23 @@ static u64 parse_long_hex(char const * str)
 	return value;
 }
 
+static void include_um(const char *start, const char *end)
+{
+	char *s;
+	char cpu[end - start + 1];
+	int old_line_nr;
+	const char *old_filename;
+
+	strncpy(cpu, start, end - start);
+	cpu[end - start] = 0;
+	s = build_fn(cpu, "unit_masks");
+	old_line_nr = line_nr;
+	old_filename = filename;
+	read_unit_masks(s);
+	line_nr = old_line_nr;
+	filename = old_filename;
+	free(s);
+}
 
 /* name:MESI type:bitmask default:0x0f */
 static void parse_um(struct op_unit_mask * um, char const * line)
@@ -93,6 +129,14 @@ static void parse_um(struct op_unit_mask * um, char const * line)
 			parse_error("parse_um() expected :value");
 
 		++tagend;
+
+		if (strisprefix(start, "include")) {
+			if (seen_name + seen_type + seen_default > 0)
+				parse_error("include must be on its own");
+			free_unit_mask(um);
+			include_um(tagend, valueend);
+			return;
+		}
 
 		if (strisprefix(start, "name")) {
 			if (seen_name)
@@ -125,6 +169,11 @@ static void parse_um(struct op_unit_mask * um, char const * line)
 		tagend = valueend;
 		start = valueend;
 	}
+
+	if (!um->name)
+		parse_error("Missing name for unit mask");
+	if (!seen_type)
+		parse_error("Missing type for unit mask");
 }
 
 
@@ -158,6 +207,11 @@ static struct op_unit_mask * new_unit_mask(void)
 	return um;
 }
 
+static void free_unit_mask(struct op_unit_mask * um)
+{
+	list_del(&um->um_next);
+	free(um);
+}
 
 /*
  * name:zero type:mandatory default:0x0
@@ -227,21 +281,68 @@ static u32 parse_counter_mask(char const * str)
 	return mask;
 }
 
-
-static struct op_unit_mask * find_um(char const * value)
+static struct op_unit_mask * try_find_um(char const * value)
 {
 	struct list_head * pos;
 
 	list_for_each(pos, &um_list) {
 		struct op_unit_mask * um = list_entry(pos, struct op_unit_mask, um_next);
-		if (strcmp(value, um->name) == 0)
+		if (strcmp(value, um->name) == 0) {
+			um->used = 1;
 			return um;
+		}
 	}
+	return NULL;
+}
 
+static struct op_unit_mask * find_um(char const * value)
+{
+	struct op_unit_mask * um = try_find_um(value);
+	if (um)
+		return um;
 	fprintf(stderr, "oprofile: could not find unit mask %s\n", value);
 	exit(EXIT_FAILURE);
 }
 
+/* um:a,b,c,d merge multiple unit masks */
+static struct op_unit_mask * merge_um(char * value)
+{
+	int num;
+	char *s;
+	struct op_unit_mask *new, *um;
+	enum unit_mask_type type = -1U;
+
+	um = try_find_um(value);
+	if (um)
+		return um;
+
+	new = new_unit_mask();
+	new->name = xstrdup(value);
+	new->used = 1;
+	num = 0;
+	while ((s = strsep(&value, ",")) != NULL) {
+		unsigned c;
+		um = find_um(s);
+		if (type == -1U)
+			type = um->unit_type_mask;
+		if (um->unit_type_mask != type)
+			parse_error("combined unit mask must be all the same types");
+		if (type != utm_bitmask && type != utm_exclusive)
+			parse_error("combined unit mask must be all bitmasks or exclusive");
+		new->default_mask |= um->default_mask;
+		new->num += um->num;
+		if (new->num > MAX_UNIT_MASK)
+			parse_error("too many members in combined unit mask");
+		for (c = 0; c < um->num; c++, num++) {
+			new->um[num] = um->um[c];
+			new->um[num].desc = xstrdup(new->um[num].desc);
+		}
+	}
+	if (type == -1U)
+		parse_error("Empty unit mask");
+	new->unit_type_mask = type;
+	return new;		
+}
 
 /* parse either a "tag:value" or a ": trailing description string" */
 static int next_token(char const ** cp, char ** name, char ** value)
@@ -287,6 +388,20 @@ static int next_token(char const ** cp, char ** name, char ** value)
 	return 1;
 }
 
+static void include_events (char *value)
+{
+	char * event_file;
+	const char *old_filename;
+	int old_line_nr;
+
+	event_file = build_fn(value, "events");
+	old_line_nr = line_nr;
+	old_filename = filename;
+	read_events(event_file);
+	line_nr = old_line_nr;
+	filename = old_filename;
+	free(event_file);
+}
 
 static struct op_event * new_event(void)
 {
@@ -297,8 +412,14 @@ static struct op_event * new_event(void)
 	return event;
 }
 
+static void free_event(struct op_event * event)
+{
+	list_del(&event->event_next);
+	free(event);
+}
 
 /* event:0x00 counters:0 um:zero minimum:4096 name:ISSUES : Total issues */
+/* event:0x00 ext:xxxxxx um:zero minimum:4096 name:ISSUES : Total issues */
 static void read_events(char const * file)
 {
 	struct op_event * event = NULL;
@@ -306,8 +427,9 @@ static void read_events(char const * file)
 	char * name;
 	char * value;
 	char const * c;
-	int seen_event, seen_counters, seen_um, seen_minimum, seen_name;
+	int seen_event, seen_counters, seen_um, seen_minimum, seen_name, seen_ext;
 	FILE * fp = fopen(file, "r");
+	int tags;
 
 	if (!fp) {
 		fprintf(stderr, "oprofile: could not open event description file %s\n", file);
@@ -323,13 +445,17 @@ static void read_events(char const * file)
 		if (empty_line(line) || comment_line(line))
 			goto next;
 
+		tags = 0;
 		seen_name = 0;
 		seen_event = 0;
 		seen_counters = 0;
+		seen_ext = 0;
 		seen_um = 0;
 		seen_minimum = 0;
 		event = new_event();
-
+		event->filter = -1;
+		event->ext = NULL;
+		
 		c = line;
 		while (next_token(&c, &name, &value)) {
 			if (strcmp(name, "name") == 0) {
@@ -351,14 +477,24 @@ static void read_events(char const * file)
 				if (seen_counters)
 					parse_error("duplicate counters: tag");
 				seen_counters = 1;
-				event->counter_mask = parse_counter_mask(value);
+				if (!strcmp(value, "cpuid"))
+					event->counter_mask = arch_get_counter_mask();
+				else
+					event->counter_mask = parse_counter_mask(value);
 				free(value);
+			} else if (strcmp(name, "ext") == 0) {
+				if (seen_ext)
+					parse_error("duplicate ext: tag");
+				seen_ext = 1;
+				event->ext = value;
 			} else if (strcmp(name, "um") == 0) {
 				if (seen_um)
 					parse_error("duplicate um: tag");
 				seen_um = 1;
-				event->unit = find_um(value);
-				event->unit->used = 1;
+				if (strchr(value, ','))
+					event->unit = merge_um(value);
+				else
+					event->unit = find_um(value);
 				free(value);
 			} else if (strcmp(name, "minimum") == 0) {
 				if (seen_minimum)
@@ -368,9 +504,22 @@ static void read_events(char const * file)
 				free(value);
 			} else if (strcmp(name, "desc") == 0) {
 				event->desc = value;
+			} else if (strcmp(name, "filter") == 0) {
+				event->filter = parse_int(value);
+				free(value);
+			} else if (strcmp(name, "include") == 0) {
+				if (tags > 0)
+					parse_error("tags before include:");
+				free_event(event);
+				include_events(value);
+				free(value);
+				c = skip_ws(c);
+				if (*c != '\0' && *c != '#')
+					parse_error("non whitespace after include:");
 			} else {
 				parse_error("unknown tag");
 			}
+			tags++;
 
 			free(name);
 		}
@@ -385,20 +534,21 @@ next:
 
 
 /* usefull for make check */
-static void check_unit_mask(struct op_unit_mask const * um,
+static int check_unit_mask(struct op_unit_mask const * um,
 	char const * cpu_name)
 {
 	u32 i;
+	int err = 0;
 
 	if (!um->used) {
 		fprintf(stderr, "um %s is not used\n", um->name);
-		exit(EXIT_FAILURE);
+		err = EXIT_FAILURE;
 	}
 
 	if (um->unit_type_mask == utm_mandatory && um->num != 1) {
 		fprintf(stderr, "mandatory um %s doesn't contain exactly one "
 			"entry (%s)\n", um->name, cpu_name);
-		exit(EXIT_FAILURE);
+		err = EXIT_FAILURE;
 	} else if (um->unit_type_mask == utm_bitmask) {
 		u32 default_mask = um->default_mask;
 		for (i = 0; i < um->num; ++i)
@@ -407,7 +557,7 @@ static void check_unit_mask(struct op_unit_mask const * um,
 		if (default_mask) {
 			fprintf(stderr, "um %s default mask is not valid "
 				"(%s)\n", um->name, cpu_name);
-			exit(EXIT_FAILURE);
+			err = EXIT_FAILURE;
 		}
 	} else {
 		for (i = 0; i < um->num; ++i) {
@@ -418,63 +568,66 @@ static void check_unit_mask(struct op_unit_mask const * um,
 		if (i == um->num) {
 			fprintf(stderr, "exclusive um %s default value is not "
 				"valid (%s)\n", um->name, cpu_name);
-			exit(EXIT_FAILURE);
+			err = EXIT_FAILURE;
 		}
+	}
+	return err;
+}
+
+static void arch_filter_events(op_cpu cpu_type)
+{
+	struct list_head * pos, * pos2;
+	unsigned filter = arch_get_filter(cpu_type);
+	if (!filter)
+		return;
+	list_for_each_safe (pos, pos2, &events_list) {
+		struct op_event * event = list_entry(pos, struct op_event, event_next);
+		if (event->filter >= 0 && ((1U << event->filter) & filter))
+			delete_event(event);
 	}
 }
 
+static void load_events_name(const char *cpu_name)
+{
+	char * event_file;
+	char * um_file;
+
+	event_file = build_fn(cpu_name, "events");
+	um_file = build_fn(cpu_name, "unit_masks");
+
+	read_unit_masks(um_file);
+	read_events(event_file);
+	
+	free(um_file);
+	free(event_file);
+}
 
 static void load_events(op_cpu cpu_type)
 {
-	char const * cpu_name = op_get_cpu_name(cpu_type);
-	char * event_dir;
-	char * event_file;
-	char * um_file;
-	char * dir;
+	const char * cpu_name = op_get_cpu_name(cpu_type);
 	struct list_head * pos;
+	int err = 0;
 
 	if (!list_empty(&events_list))
 		return;
 
-	dir = getenv("OPROFILE_EVENTS_DIR");
-	if (dir == NULL)
-		dir = OP_DATADIR;
+	load_events_name(cpu_name);
 
-	event_dir = xmalloc(strlen(dir) + strlen("/") + strlen(cpu_name) +
-                            strlen("/") + 1);
-	strcpy(event_dir, dir);
-	strcat(event_dir, "/"); 
-
-	strcat(event_dir, cpu_name);
-	strcat(event_dir, "/");
-
-	event_file = xmalloc(strlen(event_dir) + strlen("events") + 1);
-	strcpy(event_file, event_dir);
-	strcat(event_file, "events");
-
-	um_file = xmalloc(strlen(event_dir) + strlen("unit_masks") + 1);
-	strcpy(um_file, event_dir);
-	strcat(um_file, "unit_masks");
-
-	read_unit_masks(um_file);
-	read_events(event_file);
+	arch_filter_events(cpu_type);
 
 	/* sanity check: all unit mask must be used */
 	list_for_each(pos, &um_list) {
 		struct op_unit_mask * um = list_entry(pos, struct op_unit_mask, um_next);
-
-		check_unit_mask(um, cpu_name);
+		err |= check_unit_mask(um, cpu_name);
 	}
-	
-	free(um_file);
-	free(event_file);
-	free(event_dir);
+	if (err)
+		exit(err);
 }
-
 
 struct list_head * op_events(op_cpu cpu_type)
 {
 	load_events(cpu_type);
+	arch_filter_events(cpu_type);
 	return &events_list;
 }
 
@@ -521,8 +674,8 @@ void op_free_events(void)
 	}
 }
 
-
-static struct op_event * find_event(u32 nr)
+/* There can be actually multiple events here, so this is not quite correct */
+static struct op_event * find_event_any(u32 nr)
 {
 	struct list_head * pos;
 
@@ -535,8 +688,25 @@ static struct op_event * find_event(u32 nr)
 	return NULL;
 }
 
+static struct op_event * find_event_um(u32 nr, u32 um)
+{
+	struct list_head * pos;
+	unsigned int i;
 
-static FILE * open_event_mapping_file(char const * cpu_name) 
+	list_for_each(pos, &events_list) {
+		struct op_event * event = list_entry(pos, struct op_event, event_next);
+		if (event->val == nr) {
+			for (i = 0; i < event->unit->num; i++) {
+				if (event->unit->um[i].value == um)
+					return event;
+			}
+		}
+	}
+
+	return NULL;
+}
+
+static FILE * open_event_mapping_file(char const * cpu_name)
 {
 	char * ev_map_file;
 	char * dir;
@@ -560,7 +730,7 @@ static FILE * open_event_mapping_file(char const * cpu_name)
 /**
  *  This function is PPC64-specific.
  */
-static char const * get_mapping(u32 nr, FILE * fp) 
+static char const * get_mapping(u32 nr, FILE * fp)
 {
 	char * line;
 	char * name;
@@ -655,6 +825,8 @@ char const * find_mapping_for_event(u32 nr, op_cpu cpu_type)
 		case CPU_PPC64_POWER5p:
 		case CPU_PPC64_POWER5pp:
 		case CPU_PPC64_POWER6:
+		case CPU_PPC64_POWER7:
+		case CPU_PPC64_IBM_COMPAT_V1:
 			if (!fp) {
 				fprintf(stderr, "oprofile: could not open event mapping file %s\n", filename);
 				exit(EXIT_FAILURE);
@@ -672,67 +844,102 @@ char const * find_mapping_for_event(u32 nr, op_cpu cpu_type)
 	return map;
 }
 
+static int match_event(int i, struct op_event *event, unsigned um)
+{
+	unsigned v = event->unit->um[i].value;
 
-struct op_event * find_event_by_name(char const * name)
+	switch (event->unit->unit_type_mask) {
+	case utm_exclusive:
+	case utm_mandatory:
+		return v == um;
+
+	case utm_bitmask:
+		return (v & um) || (!v && v == 0);
+	}
+
+	abort();
+}
+
+struct op_event * find_event_by_name(char const * name, unsigned um, int um_valid)
 {
 	struct list_head * pos;
 
 	list_for_each(pos, &events_list) {
 		struct op_event * event = list_entry(pos, struct op_event, event_next);
-		if (strcmp(event->name, name) == 0)
+		if (strcmp(event->name, name) == 0) {
+			if (um_valid) {
+				unsigned i;
+
+				for (i = 0; i < event->unit->num; i++)
+					if (match_event(i, event, um))
+						return event;
+				continue;
+			}
 			return event;
+		}
 	}
 
 	return NULL;
 }
 
 
-struct op_event * op_find_event(op_cpu cpu_type, u32 nr)
+struct op_event * op_find_event(op_cpu cpu_type, u32 nr, u32 um)
 {
 	struct op_event * event;
 
 	load_events(cpu_type);
 
-	event = find_event(nr);
+	event = find_event_um(nr, um);
 
 	return event;
 }
 
+struct op_event * op_find_event_any(op_cpu cpu_type, u32 nr)
+{
+	load_events(cpu_type);
+
+	return find_event_any(nr);
+}
 
 int op_check_events(int ctr, u32 nr, u32 um, op_cpu cpu_type)
 {
-	int ret = OP_OK_EVENT;
-	struct op_event * event;
+	int ret = OP_INVALID_EVENT;
 	size_t i;
 	u32 ctr_mask = 1 << ctr;
+	struct list_head * pos;
 
 	load_events(cpu_type);
 
-	event = find_event(nr);
+	list_for_each(pos, &events_list) {
+		struct op_event * event = list_entry(pos, struct op_event, event_next);
+		if (event->val != nr)
+			continue;
 
-	if (!event) {
-		ret |= OP_INVALID_EVENT;
-		return ret;
-	}
+		ret = OP_OK_EVENT;
 
-	if ((event->counter_mask & ctr_mask) == 0)
-		ret |= OP_INVALID_COUNTER;
+		if ((event->counter_mask & ctr_mask) == 0)
+			ret |= OP_INVALID_COUNTER;
 
-	if (event->unit->unit_type_mask == utm_bitmask) {
-		for (i = 0; i < event->unit->num; ++i)
-			um &= ~(event->unit->um[i].value);			
-		
-		if (um)
-			ret |= OP_INVALID_UM;
+		if (event->unit->unit_type_mask == utm_bitmask) {
+			for (i = 0; i < event->unit->num; ++i)
+				um &= ~(event->unit->um[i].value);			
+			
+			if (um)
+				ret |= OP_INVALID_UM;
+			
+		} else {
+			for (i = 0; i < event->unit->num; ++i) {
+				if (event->unit->um[i].value == um)
+					break;
+			}
+			
+			if (i == event->unit->num)
+				ret |= OP_INVALID_UM;
 
-	} else {
-		for (i = 0; i < event->unit->num; ++i) {
-			if (event->unit->um[i].value == um)
-				break;
 		}
 
-		if (i == event->unit->num)
-			ret |= OP_INVALID_UM;
+		if (ret == OP_OK_EVENT)
+			return ret;
 	}
 
 	return ret;
@@ -759,6 +966,10 @@ void op_default_event(op_cpu cpu_type, struct op_default_event_descr * descr)
 		case CPU_ATHLON:
 		case CPU_HAMMER:
 		case CPU_FAMILY10:
+		case CPU_ARCH_PERFMON:
+		case CPU_FAMILY11H:
+ 		case CPU_ATOM:
+ 		case CPU_CORE_I7:
 			descr->name = "CPU_CLK_UNHALTED";
 			break;
 
@@ -793,6 +1004,7 @@ void op_default_event(op_cpu cpu_type, struct op_default_event_descr * descr)
 		case CPU_ARM_XSCALE2:
 		case CPU_ARM_MPCORE:
 		case CPU_ARM_V6:
+		case CPU_ARM_V7:
 		case CPU_AVR32:
 			descr->name = "CPU_CYCLES";
 			break;
@@ -807,6 +1019,8 @@ void op_default_event(op_cpu cpu_type, struct op_default_event_descr * descr)
 		case CPU_PPC64_POWER5p:
 		case CPU_PPC64_POWER5pp:
 		case CPU_PPC64_CELL:
+		case CPU_PPC64_POWER7:
+		case CPU_PPC64_IBM_COMPAT_V1:
 			descr->name = "CYCLES";
 			break;
 

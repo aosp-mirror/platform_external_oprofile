@@ -93,6 +93,7 @@ size_t parse_events(struct parsed_event * parsed_events, size_t max_events,
 		part = next_part(&cp);
 
 		if (part) {
+			parsed_events[i].unit_mask_valid = 1;
 			parsed_events[i].unit_mask = parse_ulong(part);
 			free(part);
 		}
