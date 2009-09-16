@@ -42,10 +42,10 @@
 
 #if !defined(WITH_ARM_V7_A)
 #define MAX_EVENTS 3
-int min_count[3] = {150000, 200000, 250000};
+int min_count[MAX_EVENTS] = {150000, 200000, 250000};
 #else
-#define MAX_EVENTS 4
-int min_count[4] = {150000, 200000, 250000, 300000};
+#define MAX_EVENTS 5
+int min_count[MAX_EVENTS] = {150000, 200000, 250000, 300000, 350000};
 #endif
 
 int list_events; 
@@ -233,7 +233,8 @@ struct event_info {
 #endif
 };
 
-void usage() {
+void usage()
+{
     printf("\nopcontrol: usage:\n"
            "   --list-events    list event types\n"
            "   --help           this message\n"
@@ -255,7 +256,8 @@ void usage() {
           );
 }
 
-void setup_session_dir() {
+void setup_session_dir()
+{
     int fd;
 
     fd = open(OP_DATA_DIR, O_RDONLY);
@@ -274,7 +276,8 @@ void setup_session_dir() {
     }
 }
 
-int do_setup() {
+int do_setup()
+{
     char dir[1024];
 
     setup_session_dir();
@@ -302,7 +305,8 @@ void do_list_events()
     }
 }
 
-int find_event_id_from_name(const char *name) {
+int find_event_idx_from_name(const char *name)
+{
     unsigned int i;
 
     for (i = 0; i < sizeof(event_info)/sizeof(struct event_info); i++) {
@@ -313,7 +317,8 @@ int find_event_id_from_name(const char *name) {
     return -1;
 }
 
-const char * find_event_name_from_id(int id) {
+const char * find_event_name_from_id(int id)
+{
     unsigned int i;
 
     for (i = 0; i < sizeof(event_info)/sizeof(struct event_info); i++) {
@@ -324,11 +329,12 @@ const char * find_event_name_from_id(int id) {
     return NULL;
 }
 
-int process_event(const char *event_spec) {
+int process_event(const char *event_spec)
+{
     char event_name[512];
     char count_name[512];
     unsigned int i;
-    int event_id;
+    int event_idx;
     int count_val;
 
     strncpy(event_name, event_spec, 512);
@@ -345,8 +351,8 @@ int process_event(const char *event_spec) {
             break;
         }
     }
-    event_id = find_event_id_from_name(event_name);
-    if (event_id == -1) {
+    event_idx = find_event_idx_from_name(event_name);
+    if (event_idx == -1) {
         fprintf(stderr, "Unknown event name: %s\n", event_name);
         return -1;
     }
@@ -358,9 +364,9 @@ int process_event(const char *event_spec) {
         count_val = atoi(count_name);
     }
 
-    selected_events[num_events] = event_id;
+    selected_events[num_events] = event_idx;
     selected_counts[num_events++] = count_val;
-    verbose("event_id is %d\n", event_id);
+    verbose("event_id is %d\n", event_info[event_idx].id);
     verbose("count_val is %d\n", count_val);
     return 0;
 }
