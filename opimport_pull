@@ -5,11 +5,12 @@ import re
 import sys
 
 def PrintUsage():
-    print "Usage:" + sys.argv[0] + " [-r] dir"
+    print "Usage:" + sys.argv[0] + " [-s serial_number] [-r] dir"
+    print "    serial_number: the device being profiled"
     print "    -r : reuse the directory if it already exists"
     print "    dir: directory on the host to store profile results"
 
-if (len(sys.argv) > 3):
+if (len(sys.argv) > 5):
     PrintUsage()
     sys.exit(1)
 
@@ -31,12 +32,22 @@ except:
     print "OPROFILE_EVENTS_DIR not set. Run \". envsetup.sh\" first"
     sys.exit(1)
 
-if sys.argv[1] == "-r" :
+argv_next = 1
+if sys.argv[1] == "-s":
+  if len(sys.argv) < 4:
+    PrintUsage()
+    sys.exit(1)
+  device = " -s %s" % sys.argv[2]
+  argv_next = argv_next + 2
+else:
+  device = ""
+
+if sys.argv[argv_next] == "-r" :
     replace_dir = 1
-    output_dir = sys.argv[2]
+    output_dir = sys.argv[argv_next+1]
 else:
     replace_dir = 0
-    output_dir = sys.argv[1]
+    output_dir = sys.argv[argv_next]
 
 if (os.path.exists(output_dir) and (replace_dir == 1)):
     os.system("rm -fr " + output_dir)
@@ -52,10 +63,10 @@ except:
     sys.exit(1)
 
 # get the samples off the phone
-result = os.system("adb pull /data/oprofile/samples " + output_dir + \
-                   "/raw_samples > /dev/null 2>&1")
+result = os.system("adb%s pull /data/oprofile/samples %s/raw_samples "
+                   "> /dev/null 2>&1" % (device, output_dir))
 if result != 0:
-    print "adb pull failure, exiting"
+    print "adb%s pull failure, exiting" % device
     sys.exit(1)
 
 # enter the destination directory
