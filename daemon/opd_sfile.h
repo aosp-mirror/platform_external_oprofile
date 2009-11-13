@@ -62,6 +62,8 @@ struct sfile {
 	int ignored;
 	/** opened sample files */
 	odb_t files[OP_MAX_COUNTERS];
+	/** extended sample files */
+	odb_t * ext_files;
 	/** hash table of opened cg sample files */
 	struct list_head cg_hash[CG_HASH_SIZE];
 };
@@ -106,6 +108,10 @@ struct sfile * sfile_find(struct transient const * trans);
 
 /** Log the sample in a previously located sfile. */
 void sfile_log_sample(struct transient const * trans);
+
+/** Log the event/cycle count in a previously located sfile */
+void sfile_log_sample_count(struct transient const * trans,
+                            unsigned long int count);
 
 /** initialise hashes */
 void sfile_init(void);

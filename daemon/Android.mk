@@ -6,6 +6,9 @@ LOCAL_SRC_FILES:= \
 	opd_anon.c \
 	opd_cookie.c \
 	opd_events.c \
+	opd_extended.c \
+	opd_ibs.c \
+	opd_ibs_trans.c \
 	opd_kernel.c \
 	opd_mangling.c \
 	opd_perfmon.c \

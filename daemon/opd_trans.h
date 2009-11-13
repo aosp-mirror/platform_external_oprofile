@@ -54,6 +54,7 @@ struct transient {
 	pid_t tid;
 	pid_t tgid;
 	uint64_t embedded_offset;
+	void * ext;
 };
 
 typedef void (*handler_t)(struct transient *);

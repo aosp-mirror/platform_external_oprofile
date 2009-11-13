@@ -10,6 +10,7 @@
  */
 
 #include "opd_stats.h"
+#include "opd_extended.h"
 #include "oprofiled.h"
 
 #include "op_get_time.h"
@@ -40,6 +41,7 @@ void opd_print_stats(void)
 	struct dirent * dirent;
 
 	printf("\n%s\n", op_get_time());
+	printf("\n-- OProfile Statistics --\n");
 	printf("Nr. sample dumps: %lu\n", opd_stats[OPD_DUMP_COUNT]);
 	printf("Nr. non-backtrace samples: %lu\n", opd_stats[OPD_SAMPLES]);
 	printf("Nr. kernel samples: %lu\n", opd_stats[OPD_KERNEL]);
@@ -59,6 +61,8 @@ void opd_print_stats(void)
 	print_if("Nr. samples lost due to no mm: %u\n",
 	       "/dev/oprofile/stats", "sample_lost_no_mm", 1);
 
+	opd_ext_print_stats();
+
 	if (!(dir = opendir("/dev/oprofile/stats/")))
 		goto out;
 	while ((dirent = readdir(dir))) {
@@ -68,6 +72,7 @@ void opd_print_stats(void)
 			continue;
 		snprintf(path, 256, "/dev/oprofile/stats/%s", dirent->d_name);
 
+		printf("\n---- Statistics for cpu : %d\n", cpu_nr);
 		print_if("Nr. samples lost cpu buffer overflow: %u\n",
 		     path, "sample_lost_overflow", 1);
 		print_if("Nr. samples lost task exit: %u\n",

@@ -22,6 +22,7 @@ struct parsed_event {
 	int unit_mask;
 	int kernel;
 	int user;
+	int unit_mask_valid;
 };
 
 /**

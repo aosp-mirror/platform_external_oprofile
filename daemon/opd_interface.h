@@ -35,11 +35,14 @@
 #if defined(__powerpc__)
 #define SPU_PROFILING_CODE		11
 #define SPU_CTX_SWITCH_CODE		12
-#define DOMAIN_SWITCH_CODE		13
-#define LAST_CODE			14
 #else
 #define DOMAIN_SWITCH_CODE		11
-#define LAST_CODE			12
+/* Code 12 is now considered an unknown escape code */
 #endif
+
+/* AMD's Instruction-Based Sampling (IBS) escape code */
+#define IBS_FETCH_SAMPLE		13
+#define IBS_OP_SAMPLE			14
+#define LAST_CODE			15
  
 #endif /* OPD_INTERFACE_H */
