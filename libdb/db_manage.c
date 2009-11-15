@@ -11,10 +11,10 @@
 #define _GNU_SOURCE
 
 #include <stdlib.h>
-#ifndef ANDROID
-#include <sys/fcntl.h>
-#else
+#ifdef ANDROID
 #include <fcntl.h>
+#else
+#include <sys/fcntl.h>
 #endif
 #include <sys/mman.h>
 #include <sys/types.h>

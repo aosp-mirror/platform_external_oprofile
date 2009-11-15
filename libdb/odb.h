@@ -180,6 +180,22 @@ void odb_hash_free_stat(odb_hash_stat_t * stats);
  */
 int odb_update_node(odb_t * odb, odb_key_t key);
 
+/**
+ * odb_update_node_with_offset
+ * @param odb the data base object to setup
+ * @param key the hash key
+ * @param offset the offset to be added
+ *
+ * update info at key by adding the specified offset to its associated value,
+ * if the key does not exist a new node is created and the value associated
+ * is set to offset.
+ *
+ * returns EXIT_SUCCESS on success, EXIT_FAILURE on failure
+ */
+int odb_update_node_with_offset(odb_t * odb, 
+				odb_key_t key, 
+				unsigned long int offset);
+
 /** Add a new node w/o regarding if a node with the same key already exists
  *
  * returns EXIT_SUCCESS on success, EXIT_FAILURE on failure

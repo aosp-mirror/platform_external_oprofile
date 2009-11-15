@@ -5,12 +5,25 @@ import re
 import sys
 
 def PrintUsage():
-    print "Usage:" + sys.argv[0] + " dir"
+    print "Usage:" + sys.argv[0] + " [-r] dir"
+    print "    -r : reuse the directory if it already exists"
     print "    dir: directory on the host to store profile results"
 
-if (len(sys.argv) != 2):
+if (len(sys.argv) > 3):
     PrintUsage()
     sys.exit(1)
+
+# identify 32-bit vs 64-bit platform
+stream = os.popen("uname -m")
+arch_name = stream.readline().rstrip("\n");
+stream.close()
+
+# default path is prebuilt/linux-x86/oprofile
+# for 64-bit OS, use prebuilt/linux-x86_64/oprofile instead
+if arch_name == "x86_64":
+    arch_path = "/../../linux-x86_64/oprofile"
+else:
+    arch_path = ""
 
 try:
     oprofile_event_dir = os.environ['OPROFILE_EVENTS_DIR']
@@ -18,13 +31,22 @@ except:
     print "OPROFILE_EVENTS_DIR not set. Run \". envsetup.sh\" first"
     sys.exit(1)
 
-output_dir = sys.argv[1];
+if sys.argv[1] == "-r" :
+    replace_dir = 1
+    output_dir = sys.argv[2]
+else:
+    replace_dir = 0
+    output_dir = sys.argv[1]
+
+if (os.path.exists(output_dir) and (replace_dir == 1)):
+    os.system("rm -fr " + output_dir)
 
 try:
     os.makedirs(output_dir)
 except:
     if os.path.exists(output_dir):
         print "Directory already exists:", output_dir
+        print "Try \"" + sys.argv[0] + " -r " + output_dir + "\""
     else:
         print "Cannot create", output_dir
     sys.exit(1)
@@ -60,11 +82,12 @@ for line in stream:
     if not os.path.exists(dir):
         os.makedirs(dir)
 
-    cmd = oprofile_event_dir + "/bin/opimport -a " + oprofile_event_dir + \
+    cmd = oprofile_event_dir + arch_path + "/bin/opimport -a " + \
+          oprofile_event_dir + \
           "/abi/arm_abi -o samples" + middle_part + "/" + file_name + " " + line
     os.system(cmd)
 
 stream.close()
 
 # short summary of profiling results
-os.system(oprofile_event_dir + "/bin/opreport --session-dir=.")
+os.system(oprofile_event_dir + arch_path + "/bin/opreport --session-dir=.")

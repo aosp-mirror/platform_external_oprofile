@@ -65,7 +65,7 @@
 #define OP_BINDIR "/usr/local/bin/"
 
 /* package data directory */
-#define OP_DATADIR "/data/oprofile/"
+#define OP_DATADIR "/usr/local/share/oprofile/"
 
 /* Name of package */
 #define PACKAGE "oprofile"
@@ -95,7 +95,7 @@
 /* #undef TRUE_FALSE_ALREADY_DEFINED */
 
 /* Version number of package */
-#define VERSION "0.9.4"
+#define VERSION "0.9.1"
 
 /* Define to 1 if the X Window System is missing or not being used. */
 /* #undef X_DISPLAY_MISSING */

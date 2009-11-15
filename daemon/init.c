@@ -174,14 +174,14 @@ static void opd_do_jitdumps(void)
 			sprintf(end_time_str, "%llu", end_time);
 			sprintf(opjitconv_path, "%s/%s", OP_BINDIR, "opjitconv");
 			arg_num = 0;
-			exec_args[arg_num++] = opjitconv_path;
+			exec_args[arg_num++] = "opjitconv";
 			if (vmisc)
 				exec_args[arg_num++] = "-d";
 			exec_args[arg_num++] = session_dir;
 			exec_args[arg_num++] = start_time_str;
 			exec_args[arg_num++] = end_time_str;
 			exec_args[arg_num] = (char *) NULL;
-			execvp("opjitconv", exec_args);
+			execvp(opjitconv_path, exec_args);
 			fprintf(stderr, "Failed to exec %s: %s\n",
 			        exec_args[0], strerror(errno));
 			/* We don't want any cleanup in the child */

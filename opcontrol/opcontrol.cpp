@@ -39,7 +39,15 @@
 /* Experiments found that using a small interval may hang the device, and the
  * more events tracked simultaneously, the longer the interval has to be.
  */
-int min_count[3] = {150000, 200000, 250000};
+
+#if !defined(WITH_ARM_V7_A)
+#define MAX_EVENTS 3
+int min_count[MAX_EVENTS] = {150000, 200000, 250000};
+#else
+#define MAX_EVENTS 5
+int min_count[MAX_EVENTS] = {150000, 200000, 250000, 300000, 350000};
+#endif
+
 int list_events; 
 int show_usage;
 int setup;
@@ -49,8 +57,8 @@ int start;
 int stop;
 int reset;
 
-int selected_events[3];
-int selected_counts[3];
+int selected_events[MAX_EVENTS];
+int selected_counts[MAX_EVENTS];
 
 char kernel_range[512];
 char vmlinux[512];
@@ -76,6 +84,8 @@ struct event_info {
     const char *name;
     const char *explanation;
 } event_info[] = {
+#if !defined(WITH_ARM_V7_A)
+    /* ARM V6 events */
     {0x00, "IFU_IFETCH_MISS", 
      "number of instruction fetch misses"},
     {0x01, "CYCLES_IFU_MEM_STALL", 
@@ -112,9 +122,119 @@ struct event_info {
      "Times write buffer was drained"},
     {0xff, "CPU_CYCLES", 
      "clock cycles counter"}, 
+#else
+    /* ARM V7 events */
+    {0x00, "PMNC_SW_INCR",
+     "Software increment of PMNC registers"},
+    {0x01, "IFETCH_MISS",
+     "Instruction fetch misses from cache or normal cacheable memory"},
+    {0x02, "ITLB_MISS",
+     "Instruction fetch misses from TLB"},
+    {0x03, "DCACHE_REFILL",
+     "Data R/W operation that causes a refill from cache or normal cacheable"
+     "memory"},
+    {0x04, "DCACHE_ACCESS",
+     "Data R/W from cache"},
+    {0x05, "DTLB_REFILL",
+     "Data R/W that causes a TLB refill"},
+    {0x06, "DREAD",
+     "Data read architecturally executed (note: architecturally executed = for"
+     "instructions that are unconditional or that pass the condition code)"},
+    {0x07, "DWRITE",
+     "Data write architecturally executed"},
+    {0x08, "INSTR_EXECUTED",
+     "All executed instructions"},
+    {0x09, "EXC_TAKEN",
+     "Exception taken"},
+    {0x0A, "EXC_EXECUTED",
+     "Exception return architecturally executed"},
+    {0x0B, "CID_WRITE",
+     "Instruction that writes to the Context ID Register architecturally"
+     "executed"},
+    {0x0C, "PC_WRITE",
+     "SW change of PC, architecturally executed (not by exceptions)"},
+    {0x0D, "PC_IMM_BRANCH",
+     "Immediate branch instruction executed (taken or not)"},
+    {0x0E, "PC_PROC_RETURN",
+     "Procedure return architecturally executed (not by exceptions)"},
+    {0x0F, "UNALIGNED_ACCESS",
+     "Unaligned access architecturally executed"},
+    {0x10, "PC_BRANCH_MIS_PRED",
+     "Branch mispredicted or not predicted. Counts pipeline flushes because of"
+     "misprediction"},
+    {0x12, "PC_BRANCH_MIS_USED",
+    "Branch or change in program flow that could have been predicted"},
+    {0x40, "WRITE_BUFFER_FULL",
+     "Any write buffer full cycle"},
+    {0x41, "L2_STORE_MERGED",
+     "Any store that is merged in L2 cache"},
+    {0x42, "L2_STORE_BUFF",
+     "Any bufferable store from load/store to L2 cache"},
+    {0x43, "L2_ACCESS",
+     "Any access to L2 cache"},
+    {0x44, "L2_CACH_MISS",
+     "Any cacheable miss in L2 cache"},
+    {0x45, "AXI_READ_CYCLES",
+     "Number of cycles for an active AXI read"},
+    {0x46, "AXI_WRITE_CYCLES",
+     "Number of cycles for an active AXI write"},
+    {0x47, "MEMORY_REPLAY",
+     "Any replay event in the memory subsystem"},
+    {0x48, "UNALIGNED_ACCESS_REPLAY",
+     "Unaligned access that causes a replay"},
+    {0x49, "L1_DATA_MISS",
+     "L1 data cache miss as a result of the hashing algorithm"},
+    {0x4A, "L1_INST_MISS",
+     "L1 instruction cache miss as a result of the hashing algorithm"},
+    {0x4B, "L1_DATA_COLORING",
+     "L1 data access in which a page coloring alias occurs"},
+    {0x4C, "L1_NEON_DATA",
+     "NEON data access that hits L1 cache"},
+    {0x4D, "L1_NEON_CACH_DATA",
+     "NEON cacheable data access that hits L1 cache"},
+    {0x4E, "L2_NEON",
+     "L2 access as a result of NEON memory access"},
+    {0x4F, "L2_NEON_HIT",
+     "Any NEON hit in L2 cache"},
+    {0x50, "L1_INST",
+     "Any L1 instruction cache access, excluding CP15 cache accesses"},
+    {0x51, "PC_RETURN_MIS_PRED",
+     "Return stack misprediction at return stack pop"
+     "(incorrect target address)"},
+    {0x52, "PC_BRANCH_FAILED",
+     "Branch prediction misprediction"},
+    {0x53, "PC_BRANCH_TAKEN",
+     "Any predicted branch that is taken"},
+    {0x54, "PC_BRANCH_EXECUTED",
+     "Any taken branch that is executed"},
+    {0x55, "OP_EXECUTED",
+     "Number of operations executed"
+     "(in instruction or mutli-cycle instruction)"},
+    {0x56, "CYCLES_INST_STALL",
+     "Cycles where no instruction available"},
+    {0x57, "CYCLES_INST",
+     "Number of instructions issued in a cycle"},
+    {0x58, "CYCLES_NEON_DATA_STALL",
+     "Number of cycles the processor waits on MRC data from NEON"},
+    {0x59, "CYCLES_NEON_INST_STALL",
+     "Number of cycles the processor waits on NEON instruction queue or"
+     "NEON load queue"},
+    {0x5A, "NEON_CYCLES",
+     "Number of cycles NEON and integer processors are not idle"},
+    {0x70, "PMU0_EVENTS",
+     "Number of events from external input source PMUEXTIN[0]"},
+    {0x71, "PMU1_EVENTS",
+     "Number of events from external input source PMUEXTIN[1]"},
+    {0x72, "PMU_EVENTS",
+     "Number of events from both external input sources PMUEXTIN[0]"
+     "and PMUEXTIN[1]"},
+    {0xFF, "CPU_CYCLES",
+     "Number of CPU cycles"},
+#endif
 };
 
-void usage() {
+void usage()
+{
     printf("\nopcontrol: usage:\n"
            "   --list-events    list event types\n"
            "   --help           this message\n"
@@ -136,7 +256,8 @@ void usage() {
           );
 }
 
-void setup_session_dir() {
+void setup_session_dir()
+{
     int fd;
 
     fd = open(OP_DATA_DIR, O_RDONLY);
@@ -155,7 +276,8 @@ void setup_session_dir() {
     }
 }
 
-int do_setup() {
+int do_setup()
+{
     char dir[1024];
 
     setup_session_dir();
@@ -183,7 +305,8 @@ void do_list_events()
     }
 }
 
-int find_event_id_from_name(const char *name) {
+int find_event_idx_from_name(const char *name)
+{
     unsigned int i;
 
     for (i = 0; i < sizeof(event_info)/sizeof(struct event_info); i++) {
@@ -194,7 +317,8 @@ int find_event_id_from_name(const char *name) {
     return -1;
 }
 
-const char * find_event_name_from_id(int id) {
+const char * find_event_name_from_id(int id)
+{
     unsigned int i;
 
     for (i = 0; i < sizeof(event_info)/sizeof(struct event_info); i++) {
@@ -205,11 +329,12 @@ const char * find_event_name_from_id(int id) {
     return NULL;
 }
 
-int process_event(const char *event_spec) {
+int process_event(const char *event_spec)
+{
     char event_name[512];
     char count_name[512];
     unsigned int i;
-    int event_id;
+    int event_idx;
     int count_val;
 
     strncpy(event_name, event_spec, 512);
@@ -226,8 +351,8 @@ int process_event(const char *event_spec) {
             break;
         }
     }
-    event_id = find_event_id_from_name(event_name);
-    if (event_id == -1) {
+    event_idx = find_event_idx_from_name(event_name);
+    if (event_idx == -1) {
         fprintf(stderr, "Unknown event name: %s\n", event_name);
         return -1;
     }
@@ -239,9 +364,9 @@ int process_event(const char *event_spec) {
         count_val = atoi(count_name);
     }
 
-    selected_events[num_events] = event_id;
+    selected_events[num_events] = event_idx;
     selected_counts[num_events++] = count_val;
-    verbose("event_id is %d\n", event_id);
+    verbose("event_id is %d\n", event_info[event_idx].id);
     verbose("count_val is %d\n", count_val);
     return 0;
 }
@@ -293,7 +418,7 @@ void do_status()
 
     printf("Driver directory: %s\n", OP_DRIVER_BASE);
     printf("Session directory: %s\n", OP_DATA_DIR);
-    for (i = 0; i < 3; i++) {
+    for (i = 0; i < MAX_EVENTS; i++) {
         sprintf(fullname, OP_DRIVER_BASE"/%d/enabled", i);
         num = read_num(fullname);
         if (num > 0) {
@@ -379,8 +504,9 @@ int main(int argc, char * const argv[])
                 break;
             /* --event */
             case 'e':   
-                if (num_events == 3) {
-                    fprintf(stderr, "More than 3 events specified\n");
+                if (num_events == MAX_EVENTS) {
+                    fprintf(stderr, "More than %d events specified\n",
+                            MAX_EVENTS);
                     exit(1);
                 }
                 if (process_event(optarg)) {
@@ -445,6 +571,7 @@ int main(int argc, char * const argv[])
 
         strcpy(command, "oprofiled --session-dir="OP_DATA_DIR);
 
+#if !defined(WITH_ARM_V7_A)
         /* Since counter #3 can only handle CPU_CYCLES, check and shuffle the 
          * order a bit so that the maximal number of events can be profiled
          * simultaneously
@@ -477,6 +604,7 @@ int main(int argc, char * const argv[])
                 selected_counts[i] = temp;
             }
         }
+#endif
 
 
         /* Configure the counters and enable them */
@@ -518,7 +646,7 @@ int main(int argc, char * const argv[])
         }
 
         /* Disable the unused counters */
-        for (i = num_events; i < 3; i++) {
+        for (i = num_events; i < MAX_EVENTS; i++) {
             echo_dev("0", 0, "enabled", i);
         }
 

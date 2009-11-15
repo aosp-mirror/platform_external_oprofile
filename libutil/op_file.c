@@ -94,7 +94,17 @@ static char * make_pathname_from_dirent(char const * basedir,
 	name_len = strlen(basedir) + strlen("/") + strlen(ent->d_name) + 1;
 	name = xmalloc(name_len);
 	sprintf(name, "%s/%s", basedir,	ent->d_name);
-	if (stat(name, st_buf) != 0) {
+	if (stat(name, st_buf) != 0)
+	{
+		struct stat lstat_buf;
+		int err = errno;
+		if (lstat(name, &lstat_buf) == 0 &&
+			    S_ISLNK(lstat_buf.st_mode)) {
+			// dangling symlink -- silently ignore
+		} else {
+			fprintf(stderr, "stat failed for %s (%s)\n",
+			                name, strerror(err));
+		}
 		free(name);
 		name = NULL;
 	}
@@ -147,13 +157,14 @@ int get_matching_pathnames(void * name_list, get_pathname_callback getpathname,
 		case MATCH_ANY_ENTRY_RECURSION + MATCH:
 			name = make_pathname_from_dirent(base_dir, ent,
 						       &stat_buffer);
-			if (name && S_ISDIR(stat_buffer.st_mode) &&
-			    !S_ISLNK(stat_buffer.st_mode)) {
-				get_matching_pathnames(
-					name_list, getpathname,
-					name, filter, recursion);
-			} else {
-				getpathname(name, name_list);
+			if (name) {
+				if (S_ISDIR(stat_buffer.st_mode)) {
+					get_matching_pathnames(
+						name_list, getpathname,
+						name, filter, recursion);
+				} else {
+					getpathname(name, name_list);
+				}
 			}
 			free(name);
 			break;
@@ -161,8 +172,7 @@ int get_matching_pathnames(void * name_list, get_pathname_callback getpathname,
 		case MATCH_DIR_ONLY_RECURSION + MATCH:
 			name = make_pathname_from_dirent(base_dir, ent,
 						       &stat_buffer);
-			if (name && S_ISDIR(stat_buffer.st_mode) &&
-			    !S_ISLNK(stat_buffer.st_mode)) {
+			if (name && S_ISDIR(stat_buffer.st_mode)) {
 				/* Check if full directory name contains
 				 * match to the filter; if so, add it to
 				 * name_list and quit; else, recurse.

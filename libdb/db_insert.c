@@ -51,6 +51,13 @@ static inline int add_node(odb_data_t * data, odb_key_t key, odb_value_t value)
 
 int odb_update_node(odb_t * odb, odb_key_t key)
 {
+	return odb_update_node_with_offset(odb, key, 1);
+}
+
+int odb_update_node_with_offset(odb_t * odb, 
+				odb_key_t key, 
+				unsigned long int offset)
+{
 	odb_index_t index;
 	odb_node_t * node;
 	odb_data_t * data;
@@ -60,8 +67,8 @@ int odb_update_node(odb_t * odb, odb_key_t key)
 	while (index) {
 		node = &data->node_base[index];
 		if (node->key == key) {
-			if (node->value + 1 != 0) {
-				node->value += 1;
+			if (node->value + offset != 0) {
+				node->value += offset;
 			} else {
 				/* post profile tools must handle overflow */
 				/* FIXME: the tricky way will be just to add
@@ -92,7 +99,7 @@ int odb_update_node(odb_t * odb, odb_key_t key)
 		index = node->next;
 	}
 
-	return add_node(data, key, 1);
+	return add_node(data, key, offset);
 }
 
 

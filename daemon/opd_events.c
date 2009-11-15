@@ -13,6 +13,7 @@
  
 #include "opd_events.h"
 #include "opd_printf.h"
+#include "opd_extended.h"
 #include "oprofiled.h"
 
 #include "op_string.h"
@@ -35,7 +36,7 @@ static double cpu_speed;
 static void malformed_events(void)
 {
 	fprintf(stderr, "oprofiled: malformed events passed "
-	        "on the command line\n");
+		"on the command line\n");
 	exit(EXIT_FAILURE);
 }
 
@@ -128,6 +129,12 @@ void opd_parse_events(char const * events)
 struct opd_event * find_counter_event(unsigned long counter)
 {
 	size_t i;
+	struct opd_event * ret = NULL;
+
+	if (counter >= OP_MAX_COUNTERS) {
+		if((ret = opd_ext_find_counter_event(counter)) != NULL)
+			return ret;
+	}
 
 	for (i = 0; i < op_nr_counters && opd_events[i].name; ++i) {
 		if (counter == opd_events[i].counter)
@@ -141,9 +148,9 @@ struct opd_event * find_counter_event(unsigned long counter)
 
 
 void fill_header(struct opd_header * header, unsigned long counter,
-                 vma_t anon_start, vma_t cg_to_anon_start,
-                 int is_kernel, int cg_to_is_kernel,
-                 int spu_samples, uint64_t embed_offset, time_t mtime)
+		 vma_t anon_start, vma_t cg_to_anon_start,
+		 int is_kernel, int cg_to_is_kernel,
+		 int spu_samples, uint64_t embed_offset, time_t mtime)
 {
 	struct opd_event * event = find_counter_event(counter);
 
