@@ -71,7 +71,24 @@ if result != 0:
 
 # enter the destination directory
 os.chdir(output_dir)
-stream = os.popen("find raw_samples -type f -name \*all")
+
+# We need to replace the " (deleted)" part in the directory names if
+# the region is allocated through ashmem. The post-processing tool doesn't like
+# space and parentheses.
+# Rename each individual directory from the longest first
+# For example, first rename
+# raw_samples/current/{root}/dev/ashmem/dalvik-jit-code-cache (deleted)/{dep}/{root}/dev/ashmem/dalvik-jit-code-cache (deleted)
+# to
+# raw_samples/current/{root}/dev/ashmem/dalvik-jit-code-cache (deleted)/{dep}/{root}/dev/ashmem/dalvik-jit-code-cache
+# then to
+# raw_samples/current/{root}/dev/ashmem/dalvik-jit-code-cache/{dep}/{root}/dev/ashmem/dalvik-jit-code-cache
+deleted_pattern = re.compile(" \(deleted\)$");
+stream = os.popen("find raw_samples -type d -name \*\ \(deleted\)\* | sort -r")
+for line in stream:
+    line = line.rstrip()
+    new_dir = deleted_pattern.sub("", line)
+    cmd = "mv " + "\"" + line + "\" \"" + new_dir + "\""
+    os.system(cmd)
 
 # now all the sample files are on the host, we need to invoke opimport one at a
 # time to convert the content from the ARM abi to x86 ABI
@@ -81,6 +98,8 @@ stream = os.popen("find raw_samples -type f -name \*all")
 # 2: intermediate dirs: "/blah/blah/blah"
 # 3: filename: e.g. "CPU_CYCLES.150000.0.all.all.all"
 pattern = re.compile("(^raw_samples)(.*)/(.*)$")
+
+stream = os.popen("find raw_samples -type f -name \*all")
 for line in stream:
     match = pattern.search(line)
     leading_dir = match.group(1)

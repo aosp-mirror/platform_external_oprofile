@@ -142,8 +142,19 @@ struct opd_event * find_counter_event(unsigned long counter)
 	}
 
 	fprintf(stderr, "Unknown event for counter %lu\n", counter);
+        /*
+         * ANDROID FIXME - from time to time there seems to be 1 phantom event
+         * reported from counter 3 when only counter 0 is enabled. Instead of
+         * crashing the daemon and losing tons of useful samples, we just
+         * charge the erroneous single count to the first event.
+         */
+#ifdef ANDROID
+        return &opd_events[0];
+#else
 	abort();
 	return NULL;
+
+#endif
 }
 
 

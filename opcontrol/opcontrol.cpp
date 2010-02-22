@@ -45,7 +45,7 @@
 int min_count[MAX_EVENTS] = {150000, 200000, 250000};
 #else
 #define MAX_EVENTS 5
-int min_count[MAX_EVENTS] = {150000, 200000, 250000, 300000, 350000};
+int min_count[MAX_EVENTS] = {150000, 20000, 25000, 30000, 35000};
 #endif
 
 int list_events; 
@@ -665,6 +665,7 @@ int main(int argc, char * const argv[])
     }
 
     if (stop) {
+        echo_dev("1", 0, "dump", -1);
         echo_dev("0", 0, "enable", -1);
     }
 }
