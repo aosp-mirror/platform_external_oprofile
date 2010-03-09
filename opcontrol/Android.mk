@@ -1,7 +1,7 @@
 LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
 
-ifeq ($(TARGET_ARCH_VARIANT), armv7-a)
+ifeq ($(ARCH_ARM_HAVE_ARMV7A), true)
     LOCAL_CFLAGS += -DWITH_ARM_V7_A
 endif
 
