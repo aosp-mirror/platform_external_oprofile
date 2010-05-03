@@ -23,6 +23,7 @@
 #include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <signal.h>
@@ -30,17 +31,16 @@
 
 #include "op_config.h"
 
-#if 0
-#define verbose(fmt...) printf(fmt)
-#else
-#define verbose(fmt...)
-#endif
+#define verbose(fmt...) if (verbose_print) printf(fmt)
 
 /* Experiments found that using a small interval may hang the device, and the
  * more events tracked simultaneously, the longer the interval has to be.
  */
 
-#if !defined(WITH_ARM_V7_A)
+#if defined(__i386__) || defined(__x86_64__)
+#define MAX_EVENTS 2
+int min_count[MAX_EVENTS] = {60000, 100000};
+#elif !defined(WITH_ARM_V7_A)
 #define MAX_EVENTS 3
 int min_count[MAX_EVENTS] = {150000, 200000, 250000};
 #else
@@ -48,6 +48,7 @@ int min_count[MAX_EVENTS] = {150000, 200000, 250000};
 int min_count[MAX_EVENTS] = {150000, 20000, 25000, 30000, 35000};
 #endif
 
+int verbose_print;
 int list_events; 
 int show_usage;
 int setup;
@@ -60,6 +61,7 @@ int reset;
 int selected_events[MAX_EVENTS];
 int selected_counts[MAX_EVENTS];
 
+char callgraph[8];
 char kernel_range[512];
 char vmlinux[512];
 
@@ -69,166 +71,215 @@ struct option long_options[] = {
     {"reset", 0, &reset, 1},
     {"setup", 0, &setup, 1},
     {"quick", 0, &quick, 1},
+    {"callgraph", 1, 0, 'c'},
     {"event", 1, 0, 'e'},
     {"vmlinux", 1, 0, 'v'},
     {"kernel-range", 1, 0, 'r'},
     {"start", 0, &start, 1},
     {"stop", 0, &stop, 1},
+    {"dump", 0, 0, 'd'},
     {"shutdown", 0, 0, 'h'},
     {"status", 0, 0, 't'},
+    {"verbose", 0, 0, 'V'},
     {0, 0, 0, 0},
 };
 
 struct event_info {
     int id;
+    int um;
     const char *name;
     const char *explanation;
 } event_info[] = {
-#if !defined(WITH_ARM_V7_A)
+#if defined(__i386__) || defined(__x86_64__)
+    /* INTEL_ARCH_PERFMON events */
+
+    /* 0x3c counters:cpuid um:zero minimum:6000 filter:0 name:CPU_CLK_UNHALTED :
+     * Clock cycles when not halted
+     */
+    {0x3c, 0, "CPU_CLK_UNHALTED",
+     "Clock cycles when not halted" },
+
+    /* event:0x3c counters:cpuid um:one minimum:6000 filter:2 name:UNHALTED_REFERENCE_CYCLES :
+     * Unhalted reference cycles
+     */
+    {0x3c, 1, "UNHALTED_REFERENCE_CYCLES",
+      "Unhalted reference cycles" },
+
+    /* event:0xc0 counters:cpuid um:zero minimum:6000 filter:1 name:INST_RETIRED :
+     * number of instructions retired
+     */
+     {0xc0, 0, "INST_RETIRED",
+       "number of instructions retired"},
+
+    /* event:0x2e counters:cpuid um:x41 minimum:6000 filter:5 name:LLC_MISSES :
+     * Last level cache demand requests from this core that missed the LLC
+     */
+     {0x2e, 0x41, "LLC_MISSES",
+       "Last level cache demand requests from this core that missed the LLC"},
+
+    /* event:0x2e counters:cpuid um:x4f minimum:6000 filter:4 name:LLC_REFS :
+     * Last level cache demand requests from this core
+     */
+     {0x2e, 0x4f, "LLC_REFS",
+      "Last level cache demand requests from this core"},
+
+    /* event:0xc4 counters:cpuid um:zero minimum:500 filter:6 name:BR_INST_RETIRED :
+     * number of branch instructions retired
+     */
+     {0xc4, 0, "BR_INST_RETIRED",
+       "number of branch instructions retired"},
+
+    /* event:0xc5 counters:cpuid um:zero minimum:500 filter:7 name:BR_MISS_PRED_RETIRED :
+     * number of mispredicted branches retired (precise)
+     */
+     {0xc5, 0, "BR_MISS_PRED_RETIRED",
+       "number of mispredicted branches retired (precise)"},
+
+#elif !defined(WITH_ARM_V7_A)
     /* ARM V6 events */
-    {0x00, "IFU_IFETCH_MISS", 
+    {0x00, 0, "IFU_IFETCH_MISS", 
      "number of instruction fetch misses"},
-    {0x01, "CYCLES_IFU_MEM_STALL", 
+    {0x01, 0, "CYCLES_IFU_MEM_STALL", 
      "cycles instruction fetch pipe is stalled"},
-    {0x02, "CYCLES_DATA_STALL", 
+    {0x02, 0, "CYCLES_DATA_STALL", 
      "cycles stall occurs for due to data dependency"},
-    {0x03, "ITLB_MISS", 
+    {0x03, 0, "ITLB_MISS", 
      "number of Instruction MicroTLB misses"},
-    {0x04, "DTLB_MISS", 
+    {0x04, 0, "DTLB_MISS", 
      "number of Data MicroTLB misses"},
-    {0x05, "BR_INST_EXECUTED", 
+    {0x05, 0, "BR_INST_EXECUTED", 
      "branch instruction executed w/ or w/o program flow change"},
-    {0x06, "BR_INST_MISS_PRED", 
+    {0x06, 0, "BR_INST_MISS_PRED", 
      "branch mispredicted"},
-    {0x07, "INSN_EXECUTED", 
+    {0x07, 0, "INSN_EXECUTED", 
      "instructions executed"},
-    {0x09, "DCACHE_ACCESS", 
+    {0x09, 0, "DCACHE_ACCESS", 
      "data cache access, cacheable locations"},
-    {0x0a, "DCACHE_ACCESS_ALL", 
+    {0x0a, 0, "DCACHE_ACCESS_ALL", 
      "data cache access, all locations"},
-    {0x0b, "DCACHE_MISS", 
+    {0x0b, 0, "DCACHE_MISS", 
      "data cache miss"},
-    {0x0c, "DCACHE_WB", 
+    {0x0c, 0, "DCACHE_WB", 
      "data cache writeback, 1 event for every half cacheline"},
-    {0x0d, "PC_CHANGE", 
+    {0x0d, 0, "PC_CHANGE", 
      "number of times the program counter was changed without a mode switch"},
-    {0x0f, "TLB_MISS", 
+    {0x0f, 0, "TLB_MISS", 
      "Main TLB miss"},
-    {0x10, "EXP_EXTERNAL", 
+    {0x10, 0, "EXP_EXTERNAL", 
      "Explicit external data access"},
-    {0x11, "LSU_STALL", 
+    {0x11, 0, "LSU_STALL", 
      "cycles stalled because Load Store request queue is full"},
-    {0x12, "WRITE_DRAIN", 
+    {0x12, 0, "WRITE_DRAIN", 
      "Times write buffer was drained"},
-    {0xff, "CPU_CYCLES", 
+    {0xff, 0, "CPU_CYCLES", 
      "clock cycles counter"}, 
 #else
     /* ARM V7 events */
-    {0x00, "PMNC_SW_INCR",
+    {0x00, 0, "PMNC_SW_INCR",
      "Software increment of PMNC registers"},
-    {0x01, "IFETCH_MISS",
+    {0x01, 0, "IFETCH_MISS",
      "Instruction fetch misses from cache or normal cacheable memory"},
-    {0x02, "ITLB_MISS",
+    {0x02, 0, "ITLB_MISS",
      "Instruction fetch misses from TLB"},
-    {0x03, "DCACHE_REFILL",
+    {0x03, 0, "DCACHE_REFILL",
      "Data R/W operation that causes a refill from cache or normal cacheable"
      "memory"},
-    {0x04, "DCACHE_ACCESS",
+    {0x04, 0, "DCACHE_ACCESS",
      "Data R/W from cache"},
-    {0x05, "DTLB_REFILL",
+    {0x05, 0, "DTLB_REFILL",
      "Data R/W that causes a TLB refill"},
-    {0x06, "DREAD",
+    {0x06, 0, "DREAD",
      "Data read architecturally executed (note: architecturally executed = for"
      "instructions that are unconditional or that pass the condition code)"},
-    {0x07, "DWRITE",
+    {0x07, 0, "DWRITE",
      "Data write architecturally executed"},
-    {0x08, "INSTR_EXECUTED",
+    {0x08, 0, "INSTR_EXECUTED",
      "All executed instructions"},
-    {0x09, "EXC_TAKEN",
+    {0x09, 0, "EXC_TAKEN",
      "Exception taken"},
-    {0x0A, "EXC_EXECUTED",
+    {0x0A, 0, "EXC_EXECUTED",
      "Exception return architecturally executed"},
-    {0x0B, "CID_WRITE",
+    {0x0B, 0, "CID_WRITE",
      "Instruction that writes to the Context ID Register architecturally"
      "executed"},
-    {0x0C, "PC_WRITE",
+    {0x0C, 0, "PC_WRITE",
      "SW change of PC, architecturally executed (not by exceptions)"},
-    {0x0D, "PC_IMM_BRANCH",
+    {0x0D, 0, "PC_IMM_BRANCH",
      "Immediate branch instruction executed (taken or not)"},
-    {0x0E, "PC_PROC_RETURN",
+    {0x0E, 0, "PC_PROC_RETURN",
      "Procedure return architecturally executed (not by exceptions)"},
-    {0x0F, "UNALIGNED_ACCESS",
+    {0x0F, 0, "UNALIGNED_ACCESS",
      "Unaligned access architecturally executed"},
-    {0x10, "PC_BRANCH_MIS_PRED",
+    {0x10, 0, "PC_BRANCH_MIS_PRED",
      "Branch mispredicted or not predicted. Counts pipeline flushes because of"
      "misprediction"},
-    {0x12, "PC_BRANCH_MIS_USED",
+    {0x12, 0, "PC_BRANCH_MIS_USED",
     "Branch or change in program flow that could have been predicted"},
-    {0x40, "WRITE_BUFFER_FULL",
+    {0x40, 0, "WRITE_BUFFER_FULL",
      "Any write buffer full cycle"},
-    {0x41, "L2_STORE_MERGED",
+    {0x41, 0, "L2_STORE_MERGED",
      "Any store that is merged in L2 cache"},
-    {0x42, "L2_STORE_BUFF",
+    {0x42, 0, "L2_STORE_BUFF",
      "Any bufferable store from load/store to L2 cache"},
-    {0x43, "L2_ACCESS",
+    {0x43, 0, "L2_ACCESS",
      "Any access to L2 cache"},
-    {0x44, "L2_CACH_MISS",
+    {0x44, 0, "L2_CACH_MISS",
      "Any cacheable miss in L2 cache"},
-    {0x45, "AXI_READ_CYCLES",
+    {0x45, 0, "AXI_READ_CYCLES",
      "Number of cycles for an active AXI read"},
-    {0x46, "AXI_WRITE_CYCLES",
+    {0x46, 0, "AXI_WRITE_CYCLES",
      "Number of cycles for an active AXI write"},
-    {0x47, "MEMORY_REPLAY",
+    {0x47, 0, "MEMORY_REPLAY",
      "Any replay event in the memory subsystem"},
-    {0x48, "UNALIGNED_ACCESS_REPLAY",
+    {0x48, 0, "UNALIGNED_ACCESS_REPLAY",
      "Unaligned access that causes a replay"},
-    {0x49, "L1_DATA_MISS",
+    {0x49, 0, "L1_DATA_MISS",
      "L1 data cache miss as a result of the hashing algorithm"},
-    {0x4A, "L1_INST_MISS",
+    {0x4A, 0, "L1_INST_MISS",
      "L1 instruction cache miss as a result of the hashing algorithm"},
-    {0x4B, "L1_DATA_COLORING",
+    {0x4B, 0, "L1_DATA_COLORING",
      "L1 data access in which a page coloring alias occurs"},
-    {0x4C, "L1_NEON_DATA",
+    {0x4C, 0, "L1_NEON_DATA",
      "NEON data access that hits L1 cache"},
-    {0x4D, "L1_NEON_CACH_DATA",
+    {0x4D, 0, "L1_NEON_CACH_DATA",
      "NEON cacheable data access that hits L1 cache"},
-    {0x4E, "L2_NEON",
+    {0x4E, 0, "L2_NEON",
      "L2 access as a result of NEON memory access"},
-    {0x4F, "L2_NEON_HIT",
+    {0x4F, 0, "L2_NEON_HIT",
      "Any NEON hit in L2 cache"},
-    {0x50, "L1_INST",
+    {0x50, 0, "L1_INST",
      "Any L1 instruction cache access, excluding CP15 cache accesses"},
-    {0x51, "PC_RETURN_MIS_PRED",
+    {0x51, 0, "PC_RETURN_MIS_PRED",
      "Return stack misprediction at return stack pop"
      "(incorrect target address)"},
-    {0x52, "PC_BRANCH_FAILED",
+    {0x52, 0, "PC_BRANCH_FAILED",
      "Branch prediction misprediction"},
-    {0x53, "PC_BRANCH_TAKEN",
+    {0x53, 0, "PC_BRANCH_TAKEN",
      "Any predicted branch that is taken"},
-    {0x54, "PC_BRANCH_EXECUTED",
+    {0x54, 0, "PC_BRANCH_EXECUTED",
      "Any taken branch that is executed"},
-    {0x55, "OP_EXECUTED",
+    {0x55, 0, "OP_EXECUTED",
      "Number of operations executed"
      "(in instruction or mutli-cycle instruction)"},
-    {0x56, "CYCLES_INST_STALL",
+    {0x56, 0, "CYCLES_INST_STALL",
      "Cycles where no instruction available"},
-    {0x57, "CYCLES_INST",
+    {0x57, 0, "CYCLES_INST",
      "Number of instructions issued in a cycle"},
-    {0x58, "CYCLES_NEON_DATA_STALL",
+    {0x58, 0, "CYCLES_NEON_DATA_STALL",
      "Number of cycles the processor waits on MRC data from NEON"},
-    {0x59, "CYCLES_NEON_INST_STALL",
+    {0x59, 0, "CYCLES_NEON_INST_STALL",
      "Number of cycles the processor waits on NEON instruction queue or"
      "NEON load queue"},
-    {0x5A, "NEON_CYCLES",
+    {0x5A, 0, "NEON_CYCLES",
      "Number of cycles NEON and integer processors are not idle"},
-    {0x70, "PMU0_EVENTS",
+    {0x70, 0, "PMU0_EVENTS",
      "Number of events from external input source PMUEXTIN[0]"},
-    {0x71, "PMU1_EVENTS",
+    {0x71, 0, "PMU1_EVENTS",
      "Number of events from external input source PMUEXTIN[1]"},
-    {0x72, "PMU_EVENTS",
+    {0x72, 0, "PMU_EVENTS",
      "Number of events from both external input sources PMUEXTIN[0]"
      "and PMUEXTIN[1]"},
-    {0xFF, "CPU_CYCLES",
+    {0xFF, 0, "CPU_CYCLES",
      "Number of CPU cycles"},
 #endif
 };
@@ -238,13 +289,19 @@ void usage()
     printf("\nopcontrol: usage:\n"
            "   --list-events    list event types\n"
            "   --help           this message\n"
+           "   --verbose        show extra status\n"
            "   --setup          setup directories\n"
+#if defined(__i386__) || defined(__x86_64__)
+           "   --quick          setup and select CPU_CLK_UNHALTED:60000\n"
+#else
            "   --quick          setup and select CPU_CYCLES:150000\n"
+#endif
            "   --status         show configuration\n"
            "   --start          start data collection\n"
            "   --stop           stop data collection\n"
            "   --reset          clears out data from current session\n"
            "   --shutdown       kill the oprofile daeman\n"
+           "   --callgraph=depth callgraph depth\n"
            "   --event=eventspec\n"
            "      Choose an event. May be specified multiple times.\n"
            "      eventspec is in the form of name[:count], where :\n"
@@ -459,8 +516,9 @@ void do_status()
             printf("  %9u samples received\n", num);
             num = read_num(OP_DRIVER_BASE"/stats/cpu0/sample_lost_overflow");
             printf("  %9u samples lost overflow\n", num);
-#if 0
-            /* FIXME - backtrace seems broken */
+
+#if defined(__i386__) || defined(__x86_64__)
+            /* FIXME on ARM - backtrace seems broken there */
             num = read_num(OP_DRIVER_BASE"/stats/cpu0/backtrace_aborted");
             printf("  %9u backtrace aborted\n", num);
             num = read_num(OP_DRIVER_BASE"/backtrace_depth");
@@ -495,12 +553,16 @@ int main(int argc, char * const argv[])
     strcpy(kernel_range, "");
 
     while (1) {
-        int c = getopt_long(argc, argv, "", long_options, &option_index);
+        int c = getopt_long(argc, argv, "c:e:v:r:dhVt", long_options, &option_index);
         if (c == -1) {
             break;
         }
         switch (c) {
             case 0:
+                break;
+            /* --callgraph */
+            case 'c':
+		strncpy(callgraph, optarg, sizeof(callgraph));
                 break;
             /* --event */
             case 'e':   
@@ -521,15 +583,33 @@ int main(int argc, char * const argv[])
             case 'r':
                 sprintf(kernel_range, "-r %s", optarg);
                 break;
+            case 'd':
+            /* --dump */ {
+                int pid = read_num(OP_DATA_DIR"/lock");
+                echo_dev("1", 0, "dump", -1);
+                if (pid >= 0) {
+                    sleep(1);
+                    kill(pid, SIGHUP);
+                }
+                break;
+            }
             /* --shutdown */
             case 'h': {
                 int pid = read_num(OP_DATA_DIR"/lock");
                 if (pid >= 0) {
+                    kill(pid, SIGHUP); /* Politely ask the daemon to close files */
+                    sleep(1);
+                    kill(pid, SIGTERM);/* Politely ask the daemon to die */
+                    sleep(1);
                     kill(pid, SIGKILL);
                 }   
                 setup_session_dir();
                 break;
             }
+            /* --verbose */
+            case 'V':
+                verbose_print++;
+                break;
             /* --status */
             case 't':
                 do_status();
@@ -547,7 +627,11 @@ int main(int argc, char * const argv[])
     }
 
     if (quick) {
+#if defined(__i386__) || defined(__x86_64__)
+        process_event("CPU_CLK_UNHALTED");
+#else
         process_event("CPU_CYCLES");
+#endif
         setup = 1;
     }
 
@@ -566,12 +650,18 @@ int main(int argc, char * const argv[])
         }
     }
 
+    if (strlen(callgraph)) {
+        echo_dev(callgraph, 0, "backtrace_depth", -1);
+    }
+
     if (num_events != 0) {
         int i;
 
         strcpy(command, "oprofiled --session-dir="OP_DATA_DIR);
 
-#if !defined(WITH_ARM_V7_A)
+#if defined(__i386__) || defined(__x86_64__)
+        /* Nothing */
+#elif !defined(WITH_ARM_V7_A)
         /* Since counter #3 can only handle CPU_CYCLES, check and shuffle the 
          * order a bit so that the maximal number of events can be profiled
          * simultaneously
@@ -624,15 +714,16 @@ int main(int argc, char * const argv[])
              * --events=CYCLES_DATA_STALL:2:0:200000:0:1:1,....
              */
             snprintf(command+strlen(command), 1024 - strlen(command), 
-                     "%s:%d:%d:%d:0:1:1",
+                     "%s:%d:%d:%d:%d:1:1",
                      event_info[event_idx].name,
                      event_info[event_idx].id,
                      i,
-                     selected_counts[i]);
+                     selected_counts[i],
+                     event_info[event_idx].um);
 
             setup_result |= echo_dev("1", 0, "user", i);
             setup_result |= echo_dev("1", 0, "kernel", i);
-            setup_result |= echo_dev("0", 0, "unit_mask", i);
+            setup_result |= echo_dev(NULL, event_info[event_idx].um, "unit_mask", i);
             setup_result |= echo_dev("1", 0, "enabled", i);
             setup_result |= echo_dev(NULL, selected_counts[i], "count", i);
             setup_result |= echo_dev(NULL, event_info[event_idx].id, 
