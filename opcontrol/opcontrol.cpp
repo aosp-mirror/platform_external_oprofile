@@ -323,11 +323,11 @@ void setup_session_dir()
         close(fd);
     }
 
-    if (mkdir(OP_DATA_DIR, 755)) {
+    if (mkdir(OP_DATA_DIR, 0755)) {
         fprintf(stderr, "Cannot create directory \"%s\": %s\n",
                 OP_DATA_DIR, strerror(errno));
     }
-    if (mkdir(OP_DATA_DIR"/samples", 644)) {
+    if (mkdir(OP_DATA_DIR"/samples", 0755)) {
         fprintf(stderr, "Cannot create directory \"%s\": %s\n",
                 OP_DATA_DIR"/samples", strerror(errno));
     }
@@ -339,7 +339,7 @@ int do_setup()
 
     setup_session_dir();
 
-    if (mkdir(OP_DRIVER_BASE, 644)) {
+    if (mkdir(OP_DRIVER_BASE, 0755)) {
         fprintf(stderr, "Cannot create directory "OP_DRIVER_BASE": %s\n",
                 strerror(errno));
         return -1;
