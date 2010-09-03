@@ -53,6 +53,7 @@ int list_events;
 int show_usage;
 int setup;
 int quick;
+int timer;
 int num_events;
 int start;
 int stop;
@@ -71,6 +72,7 @@ struct option long_options[] = {
     {"reset", 0, &reset, 1},
     {"setup", 0, &setup, 1},
     {"quick", 0, &quick, 1},
+    {"timer", 0, &timer, 1},
     {"callgraph", 1, 0, 'c'},
     {"event", 1, 0, 'e'},
     {"vmlinux", 1, 0, 'v'},
@@ -296,6 +298,7 @@ void usage()
 #else
            "   --quick          setup and select CPU_CYCLES:150000\n"
 #endif
+           "   --timer          timer-based profiling\n"
            "   --status         show configuration\n"
            "   --start          start data collection\n"
            "   --stop           stop data collection\n"
@@ -635,6 +638,10 @@ int main(int argc, char * const argv[])
         setup = 1;
     }
 
+    if (timer) {
+        setup = 1;
+    }
+
     if (reset) {
         do_reset();
     }
@@ -654,7 +661,7 @@ int main(int argc, char * const argv[])
         echo_dev(callgraph, 0, "backtrace_depth", -1);
     }
 
-    if (num_events != 0) {
+    if (num_events != 0 || timer != 0) {
         int i;
 
         strcpy(command, "oprofiled --session-dir="OP_DATA_DIR);
@@ -736,9 +743,15 @@ int main(int argc, char * const argv[])
             }
         }
 
-        /* Disable the unused counters */
-        for (i = num_events; i < MAX_EVENTS; i++) {
-            echo_dev("0", 0, "enabled", i);
+        if (timer == 0) {
+            /* If not in timer mode, disable unused counters */
+            for (i = num_events; i < MAX_EVENTS; i++) {
+                echo_dev("0", 0, "enabled", i);
+            }
+        } else {
+            /* Timer mode uses empty event list */
+            snprintf(command+strlen(command), 1024 - strlen(command),
+                     " --events=");
         }
 
         snprintf(command+strlen(command), 1024 - strlen(command), " %s",
