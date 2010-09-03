@@ -20,8 +20,7 @@ static inline int cpuid_vendor(char *vnd)
 		char v[12];
 	} v;
 	unsigned eax;
-	asm volatile(	"pushl %%ebx; cpuid; movl %%ebx, %1; popl %%ebx"
-			: "=a" (eax), "=S" (v.b), "=c" (v.c), "=d" (v.d) : "0" (0));
+	asm("cpuid" : "=a" (eax), "=b" (v.b), "=c" (v.c), "=d" (v.d) : "0" (0));
 	return !strncmp(v.v, vnd, 12);
 }
 
@@ -47,8 +46,7 @@ static inline void workaround_nehalem_aaj79(unsigned *ebx)
 
 	if (!cpuid_vendor("GenuineIntel"))
 		return;
-	asm volatile(	"pushl %%ebx; cpuid; movl %%ebx, %1; popl %%ebx"
-			: "=a" (v.eax) : "0" (1) : "ecx","edx");
+	asm("cpuid" : "=a" (v.eax) : "0" (1) : "ecx","ebx","edx");
 	model = (v.ext_model << 4) + v.model;
 	if (v.family != 6 || model != 26 || v.stepping > 4)
 		return;
@@ -59,8 +57,7 @@ static inline unsigned arch_get_filter(op_cpu cpu_type)
 {
 	if (cpu_type == CPU_ARCH_PERFMON) { 
 		unsigned ebx, eax;
-		asm volatile(	"pushl %%ebx; cpuid; movl %%ebx, %1; popl %%ebx"
-				: "=a" (eax), "=S" (ebx) : "0" (0xa) : "ecx","edx");
+		asm("cpuid" : "=a" (eax), "=b" (ebx) : "0" (0xa) : "ecx","edx");
 		workaround_nehalem_aaj79(&ebx);
 		return ebx & num_to_mask(eax >> 24);
 	}
@@ -71,8 +68,7 @@ static inline int arch_num_counters(op_cpu cpu_type)
 {
 	if (cpu_type == CPU_ARCH_PERFMON) {
 		unsigned v;
-		asm volatile(	"pushl %%ebx; cpuid; movl %%eax, %1; popl %%ebx"
-				: "=a" (v) : "0" (0xa) : "ecx","edx");
+		asm("cpuid" : "=a" (v) : "0" (0xa) : "ebx","ecx","edx");
 		return (v >> 8) & 0xff;
 	} 
 	return -1;
@@ -81,8 +77,7 @@ static inline int arch_num_counters(op_cpu cpu_type)
 static inline unsigned arch_get_counter_mask(void)
 {
 	unsigned v;
-	asm volatile(	"pushl %%ebx; cpuid; movl %%ebx, %1; popl %%ebx"
-			: "=a" (v) : "0" (0xa) : "ecx","edx");
+	asm("cpuid" : "=a" (v) : "0" (0xa) : "ebx","ecx","edx");
 	return num_to_mask((v >> 8) & 0xff);	
 }
 

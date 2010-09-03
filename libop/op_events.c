@@ -970,6 +970,8 @@ void op_default_event(op_cpu cpu_type, struct op_default_event_descr * descr)
 		case CPU_FAMILY11H:
  		case CPU_ATOM:
  		case CPU_CORE_I7:
+		case CPU_NEHALEM:
+		case CPU_MIPS_LOONGSON2:
 			descr->name = "CPU_CLK_UNHALTED";
 			break;
 
@@ -1005,6 +1007,7 @@ void op_default_event(op_cpu cpu_type, struct op_default_event_descr * descr)
 		case CPU_ARM_MPCORE:
 		case CPU_ARM_V6:
 		case CPU_ARM_V7:
+		case CPU_ARM_V7_CA9:
 		case CPU_AVR32:
 			descr->name = "CPU_CYCLES";
 			break;
@@ -1029,10 +1032,9 @@ void op_default_event(op_cpu cpu_type, struct op_default_event_descr * descr)
 			break;
 
 		case CPU_MIPS_24K:
-			descr->name = "INSTRUCTIONS";
-			break;
-
 		case CPU_MIPS_34K:
+		case CPU_MIPS_74K:
+		case CPU_MIPS_1004K:
 			descr->name = "INSTRUCTIONS";
 			break;
 

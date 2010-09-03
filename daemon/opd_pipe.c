@@ -22,6 +22,7 @@
 #include <sys/stat.h>
 
 static int fifo;
+static FILE * fifo_fd = NULL;
 
 void opd_create_pipe(void)
 {
@@ -48,6 +49,8 @@ void opd_open_pipe(void)
 
 void opd_close_pipe(void)
 {
+	if (fifo_fd)
+		fclose(fifo_fd);
 	close(fifo);
 }
 
@@ -58,14 +61,14 @@ int is_jitconv_requested(void)
 	static long nr_drops = 0;
 	/* modulus to output only a few warnings to avoid flooding oprofiled.log */
 	static int mod_cnt_drops = 1;
-	FILE * fd;
 	char line[256];
 	int i, ret = 0;
 
 	/* get a file descriptor to the pipe */
-	fd = fdopen(fifo, "r");
+	if (!fifo_fd)
+		fifo_fd = fdopen(fifo, "r");
 
-	if (fd == NULL) {
+	if (fifo_fd == NULL) {
 		perror("oprofiled: couldn't create file descriptor: ");
 		exit(EXIT_FAILURE);
 	}
@@ -73,7 +76,7 @@ int is_jitconv_requested(void)
 	/* read up to 99 lines to check for 'do_jitconv' */
 	for (i = 0; i < 99; i++) {
 		/* just break if no new line is found */
-		if (fgets(line, 256, fd) == NULL)
+		if (fgets(line, 256, fifo_fd) == NULL)
 			break;
 		line[strlen(line) - 1] = '\0';
 

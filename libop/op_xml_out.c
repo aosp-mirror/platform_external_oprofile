@@ -77,6 +77,7 @@ char const * xml_tag_map[] = {
 		"desc",
 		"counter_mask",
 		"min_count",
+		"ext",
 	"unit_masks",
 		"default",
 	"unit_mask",
@@ -91,143 +92,176 @@ char const * xml_tag_name(tag_t tag)
 }
 
 
-void open_xml_element(tag_t tag, int with_attrs, char * buffer)
+void open_xml_element(tag_t tag, int with_attrs, char *buffer, size_t max)
 {
-	char const * tag_name = xml_tag_name(tag);
-	unsigned int const max_len = strlen(tag_name) + 3;
-	char tmp_buf[MAX_BUF_LEN];
+	char *buf;
+	int size, ret;
 
-	if (max_len >= sizeof(tmp_buf))
-		fprintf(stderr,"Warning: open_xml_element: buffer overflow %d\n", max_len);
+	buffer[max - 1] = '\0';
+	size = strlen(buffer);
+	buf = &buffer[size];
+	size = max - 1 - size;
 
-	if (snprintf(tmp_buf, sizeof(tmp_buf), "<%s%s", tag_name,
-		(with_attrs ? " " : ">\n")) < 0) {
+	ret = snprintf(buf, size, "<%s%s", xml_tag_name(tag),
+		       (with_attrs ? " " : ">\n"));
+
+	if (ret < 0 || ret >= size) {
 		fprintf(stderr,"open_xml_element: snprintf failed\n");
 		exit(EXIT_FAILURE);
 	}
-	strncat(buffer, tmp_buf, sizeof(tmp_buf));
 }
 
 
-void close_xml_element(tag_t tag, int has_nested, char * buffer)
+void close_xml_element(tag_t tag, int has_nested, char *buffer, size_t max)
 {
-	char const * tag_name = xml_tag_name(tag);
-	unsigned int const max_len = strlen(tag_name) + 3;
-	char tmp_buf[MAX_BUF_LEN];
+	char *buf;
+	int size, ret;
 
-	if (max_len >= sizeof(tmp_buf))
-		fprintf(stderr,"Warning: close_xml_element: buffer overflow %d\n", max_len);
+	buffer[max - 1] = '\0';
+	size = strlen(buffer);
+	buf = &buffer[size];
+	size = max - 1 - size;
 
-	if (tag == NONE) {
-		if (snprintf(tmp_buf, sizeof(tmp_buf), "%s\n", (has_nested ? ">" : "/>")) < 0) {
-			fprintf(stderr, "close_xml_element: snprintf failed\n");
-			exit(EXIT_FAILURE);
-		}
-	} else {
-		if (snprintf(tmp_buf, sizeof(tmp_buf), "</%s>\n", tag_name) < 0) {
-			fprintf(stderr, "close_xml_element: snprintf failed\n");
-			exit(EXIT_FAILURE);
-		}
+	if (tag == NONE)
+		ret = snprintf(buf, size, "%s\n", (has_nested ? ">" : "/>"));
+	else
+		ret = snprintf(buf, size, "</%s>\n", xml_tag_name(tag));
+
+	if (ret < 0 || ret >= size) {
+		fprintf(stderr, "close_xml_element: snprintf failed\n");
+		exit(EXIT_FAILURE);
 	}
-	strncat(buffer, tmp_buf, sizeof(tmp_buf));
 }
 
 
-void init_xml_int_attr(tag_t attr, int value, char * buffer)
+void init_xml_int_attr(tag_t attr, int value, char *buffer, size_t max)
 {
-	char const * attr_name = xml_tag_name(attr);
-	char tmp_buf[MAX_BUF_LEN];
-	unsigned int const max_len = strlen(attr_name) + 50;
+	char *buf;
+	int size, ret;
 
-	if (max_len >= sizeof(tmp_buf)) {
-		fprintf(stderr,
-			"Warning: init_xml_int_attr: buffer overflow %d\n", max_len);
-	}
+	buffer[max - 1] = '\0';
+	size = strlen(buffer);
+	buf = &buffer[size];
+	size = max - 1 - size;
 
+	ret = snprintf(buf, size, " %s=\"%d\"", xml_tag_name(attr), value);
 
-	if (snprintf(tmp_buf, sizeof(tmp_buf), " %s=\"%d\"", attr_name, value) < 0) {
+	if (ret < 0 || ret >= size) {
 		fprintf(stderr,"init_xml_int_attr: snprintf failed\n");
 		exit(EXIT_FAILURE);
 	}
-	strncat(buffer, tmp_buf, sizeof(tmp_buf));
 }
 
 
-void init_xml_dbl_attr(tag_t attr, double value, char * buffer)
+void init_xml_dbl_attr(tag_t attr, double value, char *buffer, size_t max)
 {
-	char const * attr_name = xml_tag_name(attr);
-	unsigned int const max_len = strlen(attr_name) + 50;
-	char tmp_buf[MAX_BUF_LEN];
+	char *buf;
+	int size, ret;
 
-	if (max_len >= sizeof(tmp_buf))
-		fprintf(stderr, "Warning: init_xml_dbl_attr: buffer overflow %d\n", max_len);
+	buffer[max - 1] = '\0';
+	size = strlen(buffer);
+	buf = &buffer[size];
+	size = max - 1 - size;
 
-	if (snprintf(tmp_buf, sizeof(tmp_buf), " %s=\"%.2f\"", attr_name, value) < 0) {
+	ret = snprintf(buf, size, " %s=\"%.2f\"", xml_tag_name(attr), value);
+
+	if (ret < 0 || ret >= size) {
 		fprintf(stderr, "init_xml_dbl_attr: snprintf failed\n");
 		exit(EXIT_FAILURE);
 	}
-	strncat(buffer, tmp_buf, sizeof(tmp_buf));
 }
 
 
-static char * xml_quote(char const * str, char * quote_buf)
+static void xml_quote(char const *str, char *buffer, size_t max)
 {
-	int i;
-	int pos = 0;
-	int len = strlen(str);
+	char *buf;
+	char *quote;
+	char *pos = (char*)str;
+	size_t size;
+	int ret;
 
-	
-	quote_buf[pos++] = '"';
+	buffer[max - 1] = '\0';
+	size = strlen(buffer);
+	buf = &buffer[size];
+	size = max - 1 - size;
 
-	for (i = 0; i < len; i++) {
-		if (pos >= MAX_BUF_LEN - 10) {
-			fprintf(stderr,"quote_str: buffer overflow %d\n", pos);
-			exit(EXIT_FAILURE);
-		}
+	if (size < strlen(pos) + 2)
+		goto Error;
 
-		switch(str[i]) {
+	*buf = '"';
+	buf++;
+	size--;
+
+	while (*pos) {
+		switch(*pos) {
 		case '&':
-			strncpy(quote_buf + pos, "&amp;", 5);
-			pos += 5;
+			quote = "&amp;";
 			break;
 		case '<':
-			strncpy(quote_buf + pos, "&lt;", 4);
-			pos += 4;
+			quote = "&lt;";
 			break;
 		case '>':
-			strncpy(quote_buf + pos, "&gt;", 4);
-			pos += 4;
+                        quote = "&gt;";
 			break;
 		case '"':
-			strncpy(quote_buf + pos, "&quot;", 6);
-			pos += 6;
+			quote = "&quot;";
 			break;
 		default:
-			quote_buf[pos++] = str[i];
-			break;
+			*buf = *pos;
+			pos++;
+			buf++;
+			size--;
+			continue;
 		}
+
+		pos++;
+		ret = snprintf(buf, size, "%s", quote);
+		if (ret < 0 || ret >= (int)size)
+			goto Error;
+		buf += ret;
+		size -= ret;
+		if (size < strlen(pos))
+			goto Error;
 	}
 
-	quote_buf[pos++] = '"';
-	quote_buf[pos++] = '\0';
-	return quote_buf;
+	if (!size)
+		goto Error;
+
+	*buf = '"';
+	buf++;
+	*buf = '\0';
+
+	return;
+
+Error:
+	fprintf(stderr,"quote_str: buffer overflow\n");
+	exit(EXIT_FAILURE);
 }
 
 
-void init_xml_str_attr(tag_t attr, char const * str, char * buffer)
+void init_xml_str_attr(tag_t attr, char const *str, char *buffer, size_t max)
 {
-	char tmp_buf[MAX_BUF_LEN];
-	char quote_buf[MAX_BUF_LEN];
-	char const * attr_name = xml_tag_name(attr);
-	char const * quote_str = xml_quote(str, quote_buf);
-	const unsigned int max_len = strlen(attr_name) + strlen(quote_str) + 10;
+	char *buf;
+	int size, ret;
 
-	if (max_len >= sizeof(tmp_buf))
-		fprintf(stderr, "Warning: init_xml_str_attr: buffer overflow %d\n", max_len);
+	buffer[max - 1] = '\0';
+	size = strlen(buffer);
+	buf = &buffer[size];
+	size = max - 1 - size;
 
-	if (snprintf(tmp_buf, sizeof(tmp_buf), " %s=""%s""", attr_name, quote_str) < 0) {
-		fprintf(stderr,"init_xml_str_attr: snprintf failed\n");
-		exit(EXIT_FAILURE);
-	}
-	strncat(buffer, tmp_buf, sizeof(tmp_buf));
+	ret = snprintf(buf, size, " %s=", xml_tag_name(attr));
+	if (ret < 0 || ret >= size)
+		goto Error;
+
+	buf += ret;
+	size -= ret;
+
+	if (!size)
+		goto Error;
+
+	xml_quote(str, buf, size);
+	return;
+Error:
+	fprintf(stderr,"init_xml_str_attr: snprintf failed\n");
+	exit(EXIT_FAILURE);
 }
