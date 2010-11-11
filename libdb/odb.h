@@ -228,7 +228,7 @@ odb_do_hash(odb_data_t const * data, odb_key_t value)
 	 * files avoiding to rebuilding them at profiling re-start so
 	 * on changing do_hash() change the file format!
 	 */
-	uint32_t temp = (value >> 32) ^ value;
+	uint32_t temp = value & 0xffffffff;
 	return ((temp << 0) ^ (temp >> 8)) & data->hash_mask;
 }
 
