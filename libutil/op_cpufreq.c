@@ -51,11 +51,6 @@ double op_cpu_frequency(void)
 			fval = uval / 1E6;
 			break;
 		}
-		/* mips including loongson2 */
-		if (sscanf(line, "BogoMIPS		: %lu", &uval) == 1) {
-			fval = uval * 3 / 2;
-			break;
-		}
 		/* s390 doesn't provide cpu freq, checked up to 2.6-test4 */
 
 		free(line);
