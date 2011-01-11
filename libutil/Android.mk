@@ -1,7 +1,6 @@
 LOCAL_PATH:= $(call my-dir)
-include $(CLEAR_VARS)
 
-LOCAL_SRC_FILES:= \
+common_src := \
 	op_cpufreq.c \
 	op_deviceio.c \
 	op_file.c \
@@ -14,9 +13,27 @@ LOCAL_SRC_FILES:= \
 	op_string.c \
 	op_version.c
 
-LOCAL_C_INCLUDES := \
-	$(LOCAL_PATH)/..
+common_includes := \
+	external/oprofile
 
+# Build libutil on target
+include $(CLEAR_VARS)
+
+LOCAL_SRC_FILES:= $(common_src)
+LOCAL_C_INCLUDES := $(common_includes)
+LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := libutil
 
 include $(BUILD_STATIC_LIBRARY)
+
+# Build libutil on host
+include $(CLEAR_VARS)
+
+LOCAL_SRC_FILES:= $(common_src)
+LOCAL_C_INCLUDES := $(common_includes)
+LOCAL_CFLAGS := -fexceptions -DANDROID_HOST -DHAVE_XCALLOC
+LOCAL_MODULE_TAGS := optional
+LOCAL_MODULE := libutil
+
+include $(BUILD_HOST_STATIC_LIBRARY)
+

@@ -5,7 +5,7 @@
  * @author Andi Kleen
  */
 
-#if defined(__i386__) || defined(__x86_64__) 
+#if (defined(__i386__) || defined(__x86_64__)) && !defined(ANDROID_HOST)
 
 /* Assume we run on the same host as the profilee */
 

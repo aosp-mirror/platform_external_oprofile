@@ -50,10 +50,10 @@
 #define HAVE_UNISTD_H 1
 
 /* Define to 1 if you have the `xcalloc' function. */
-#undef HAVE_XCALLOC
+/* #undef HAVE_XCALLOC */
 
 /* Define to 1 if you have the `xmemdup' function. */
-#undef HAVE_XMEMDUP
+/* #undef HAVE_XMEMDUP */
 
 /* whether malloc attribute is understood */
 #define MALLOC_ATTRIBUTE_OK 1

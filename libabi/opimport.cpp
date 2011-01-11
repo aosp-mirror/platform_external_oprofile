@@ -114,6 +114,8 @@ void import_from_abi(abi const & abi, void const * srcv,
 	extractor ext(abi, src, len);	
 
 	memcpy(head->magic, src + abi.need("offsetof_header_magic"), 4);
+	if (verbose)
+		cerr << hex << "magic = " << (int) head->magic[0] << ":" << (int) head->magic[1] << ":" << (int) head->magic[2] << ":" << (int) head->magic[3] << endl;
 
 	// begin extracting opd header
 	ext.extract(head->version, src, "sizeof_u32", "offsetof_header_version");
@@ -200,10 +202,12 @@ int main(int argc, char const ** argv)
 	odb_t dest;
 	int rc;
 
-	assert((in_fd = open(inputs[0].c_str(), O_RDONLY)) > 0);		
-	assert(fstat(in_fd, &statb) == 0);
-	assert((in = mmap(0, statb.st_size, PROT_READ,
-			  MAP_PRIVATE, in_fd, 0)) != (void *)-1);
+	in_fd = open(inputs[0].c_str(), O_RDONLY);
+	assert(in_fd > 0);
+	rc = fstat(in_fd, &statb);
+	assert(rc == 0);
+	in = mmap(0, statb.st_size, PROT_READ, MAP_PRIVATE, in_fd, 0);
+	assert(in != (void *)-1);
 
 	rc = odb_open(&dest, output_filename.c_str(), ODB_RDWR,
 		      sizeof(struct opd_header));
@@ -221,5 +225,6 @@ int main(int argc, char const ** argv)
 
 	odb_close(&dest);
 
-	assert(munmap(in, statb.st_size) == 0);
+	rc = munmap(in, statb.st_size);
+	assert(rc == 0);
 }

@@ -122,6 +122,7 @@
 #define HAVE_LONG_LONG 1
 
 /* Define to 1 if you have the <malloc.h> header file. */
+#undef HAVE_MALLOC_H /* already defined in system/core/include/arch/linux-arm/AndroidConfig.h */
 #define HAVE_MALLOC_H 1
 
 /* Define to 1 if you have the <mcheck.h> header file. */
@@ -213,7 +214,7 @@
 #undef HAVE_UINTMAX_T
 
 /* Define to 1 if you have the <unistd.h> header file. */
-#undef HAVE_UNISTD_H
+#define HAVE_UNISTD_H 1
 
 /* Define if you have the 'unsigned long long' type. */
 #undef HAVE_UNSIGNED_LONG_LONG

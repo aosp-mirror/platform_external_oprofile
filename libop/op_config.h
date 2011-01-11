@@ -25,7 +25,7 @@ extern "C" {
  */
 void init_op_config_dirs(char const * session_dir);
 
-#ifndef ANDROID
+#if !defined(ANDROID) || defined(ANDROID_HOST)
 #define OP_SESSION_DIR_DEFAULT "/var/lib/oprofile/"
 #endif
 

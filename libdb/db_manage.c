@@ -77,11 +77,20 @@ int odb_grow_hashtable(odb_data_t * data)
 	if (ftruncate(data->fd, new_file_size))
 		return 1;
 
+#ifdef MISSING_MREMAP
+	new_map = mmap(0, new_file_size, PROT_READ | PROT_WRITE,
+		MAP_SHARED, data->fd, 0);
+#else
 	new_map = mremap(data->base_memory,
 			 old_file_size, new_file_size, MREMAP_MAYMOVE);
+#endif
 
 	if (new_map == MAP_FAILED)
 		return 1;
+
+#ifdef MISSING_MREMAP
+	munmap(data->base_memory, old_file_size);
+#endif
 
 	data->base_memory = new_map;
 	data->descr = odb_to_descr(data);

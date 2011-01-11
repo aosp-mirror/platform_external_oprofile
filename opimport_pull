@@ -10,27 +10,27 @@ def PrintUsage():
     print "    -r : reuse the directory if it already exists"
     print "    dir: directory on the host to store profile results"
 
-if (len(sys.argv) > 5):
+if (len(sys.argv) <= 1 or len(sys.argv) > 5):
     PrintUsage()
     sys.exit(1)
 
-# identify 32-bit vs 64-bit platform
-stream = os.popen("uname -m")
-arch_name = stream.readline().rstrip("\n");
-stream.close()
-
-# default path is prebuilt/linux-x86/oprofile
-# for 64-bit OS, use prebuilt/linux-x86_64/oprofile instead
-if arch_name == "x86_64":
-    arch_path = "/../../linux-x86_64/oprofile"
-else:
-    arch_path = ""
-
+# find prebuilt event data
 try:
     oprofile_event_dir = os.environ['OPROFILE_EVENTS_DIR']
 except:
+    # TODO: We can remove this in the future since we pull the abi data
+    # off the device so we don't need it to be in the prebuilts directory.
     print "OPROFILE_EVENTS_DIR not set. Run \". envsetup.sh\" first"
     sys.exit(1)
+
+# find binaries
+try:
+    oprofile_bin_dir = os.environ['OPROFILE_BIN_DIR']
+except:
+    # TODO: This assumes that the bin dir is prebuilt.
+    # When the host libbfd dependency is resolved and we can compile oprofile
+    # on the host, we should use those binaries instead.
+    oprofile_bin_dir = oprofile_event_dir + '/bin'
 
 argv_next = 1
 if sys.argv[1] == "-s":
@@ -64,6 +64,13 @@ except:
 
 # get the samples off the phone
 result = os.system("adb%s pull /data/oprofile/samples %s/raw_samples "
+                   "> /dev/null 2>&1" % (device, output_dir))
+if result != 0:
+    print "adb%s pull failure, exiting" % device
+    sys.exit(1)
+
+# get the ABI information off the phone
+result = os.system("adb%s pull /data/oprofile/abi %s/abi "
                    "> /dev/null 2>&1" % (device, output_dir))
 if result != 0:
     print "adb%s pull failure, exiting" % device
@@ -112,12 +119,11 @@ for line in stream:
     if not os.path.exists(dir):
         os.makedirs(dir)
 
-    cmd = oprofile_event_dir + arch_path + "/bin/opimport -a " + \
-          oprofile_event_dir + \
-          "/abi/arm_abi -o samples" + middle_part + "/" + file_name + " " + line
+    cmd = oprofile_bin_dir + "/opimport -a abi " \
+          + " -o samples" + middle_part + "/" + file_name + " " + line
     os.system(cmd)
 
 stream.close()
 
 # short summary of profiling results
-os.system(oprofile_event_dir + arch_path + "/bin/opreport --session-dir=.")
+os.system(oprofile_bin_dir + "/opreport --session-dir=.")
