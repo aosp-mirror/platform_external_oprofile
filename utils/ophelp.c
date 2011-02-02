@@ -469,6 +469,18 @@ int main(int argc, char const * argv[])
 			"See BIOS and Kernel Developer's Guide for AMD Family 11h Processors\n"
 			"(41256.pdf), Section 3.14\n\n";
 		break;
+	case CPU_FAMILY12H:
+		event_doc =
+			"See BIOS and Kernel Developer's Guide for AMD Family 12h Processors\n";
+		break;
+	case CPU_FAMILY14H:
+		event_doc =
+			"See BIOS and Kernel Developer's Guide for AMD Family 14h Processors\n";
+		break;
+	case CPU_FAMILY15H:
+		event_doc =
+			"See BIOS and Kernel Developer's Guide for AMD Family 15h Processors\n";
+		break;
 	case CPU_ATHLON:
 		event_doc =
 			"See AMD Athlon Processor x86 Code Optimization Guide\n"
@@ -483,6 +495,8 @@ int main(int argc, char const * argv[])
 	case CPU_CORE:
 	case CPU_CORE_2:
 	case CPU_CORE_I7:
+	case CPU_NEHALEM:
+	case CPU_WESTMERE:
 	case CPU_ATOM:
 		event_doc =
 			"See Intel Architecture Developer's Manual Volume 3B, Appendix A and\n"
@@ -534,8 +548,14 @@ int main(int argc, char const * argv[])
 
 	case CPU_ARM_V7:
 		event_doc =
-			"See ARM11 Technical Reference Manual\n"
+			"See Cortex-A8 Technical Reference Manual\n"
 			"Cortex A8 DDI (ARM DDI 0344B, revision r1p1)\n";
+		break;
+
+	case CPU_ARM_V7_CA9:
+		event_doc =
+			"See Cortex-A9 Technical Reference Manual\n"
+			"Cortex A9 DDI (ARM DDI 0388E, revision r2p0)\n";
 		break;
 
 	case CPU_PPC64_PA6T:
@@ -584,6 +604,16 @@ int main(int argc, char const * argv[])
 			"See Programming the MIPS32 34K Core Family "
 			"available from www.mips.com\n";
 		break;
+	case CPU_MIPS_74K:
+		event_doc =
+			"See Programming the MIPS32 74K Core Family "
+			"available from www.mips.com\n";
+		break;
+	case CPU_MIPS_1004K:
+		event_doc =
+			"See Programming the MIPS32 1004K Core Family "
+			"available from www.mips.com\n";
+		break;
 	case CPU_MIPS_5K:
 		event_doc =
 			"See Programming the MIPS64 5K Processor Core Family "
@@ -615,6 +645,11 @@ int main(int argc, char const * argv[])
 		event_doc =
 			"See NEC R10000 / R12000 User's Manual\n"
 			"http://www.necel.com/nesdis/image/U16677EJ3V0UM00.pdf\n";
+		break;
+
+	case CPU_MIPS_LOONGSON2:
+		event_doc = 
+			"See loongson2 RISC Microprocessor Family Reference Manual\n";
 		break;
 
 	case CPU_PPC_E500:

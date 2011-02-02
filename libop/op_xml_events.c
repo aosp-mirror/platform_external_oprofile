@@ -21,14 +21,15 @@ static char buffer[MAX_BUFFER];
 
 void open_xml_events(char const * title, char const * doc, op_cpu the_cpu_type)
 {
-	char const * schema_version = "1.0";
+	char const * schema_version = "1.1";
 
 	buffer[0] = '\0';
 	cpu_type = the_cpu_type;
-	open_xml_element(HELP_EVENTS, 0, buffer, MAX_BUFFER);
+	open_xml_element(HELP_EVENTS, 1, buffer, MAX_BUFFER);
+	init_xml_str_attr(SCHEMA_VERSION, schema_version, buffer, MAX_BUFFER);
+	close_xml_element(NONE, 1, buffer, MAX_BUFFER);
 	open_xml_element(HELP_HEADER, 1, buffer, MAX_BUFFER);
 	init_xml_str_attr(HELP_TITLE, title, buffer, MAX_BUFFER);
-	init_xml_str_attr(SCHEMA_VERSION, schema_version, buffer, MAX_BUFFER);
 	init_xml_str_attr(HELP_DOC, doc, buffer, MAX_BUFFER);
 	close_xml_element(NONE, 0, buffer, MAX_BUFFER);
 	printf("%s", buffer);
@@ -76,10 +77,23 @@ void xml_help_for_event(struct op_event const * event)
 			  buffer, MAX_BUFFER);
 
 	if (has_nested) {
+		char um_type[10];
 		close_xml_element(NONE, 1, buffer, MAX_BUFFER);
 		open_xml_element(HELP_UNIT_MASKS, 1, buffer, MAX_BUFFER);
 		init_xml_int_attr(HELP_DEFAULT_MASK, event->unit->default_mask,
 				  buffer, MAX_BUFFER);
+		switch (event->unit->unit_type_mask){
+		case utm_bitmask:
+			strncpy(um_type, "bitmask", sizeof(um_type));
+			break;
+		case utm_exclusive:
+			strncpy(um_type, "exclusive", sizeof(um_type));
+			break;
+		case utm_mandatory:
+			strncpy(um_type, "mandatory", sizeof(um_type));
+			break;
+		}
+		init_xml_str_attr(HELP_UNIT_MASKS_CATEGORY, um_type, buffer, MAX_BUFFER);
 		close_xml_element(NONE, 1, buffer, MAX_BUFFER);
 		for (i = 0; i < event->unit->num; i++) {
 			open_xml_element(HELP_UNIT_MASK, 1, buffer, MAX_BUFFER);

@@ -80,20 +80,24 @@ Use sample database out of directory dir_path instead of the default location (/
 .br
 .TP
 .BI "--buffer-size="num
-Set kernel buffer to num samples. When using a 2.6 kernel buffer watershed need
+Set kernel buffer to num samples. When using a 2.6 kernel, buffer watershed needs
 to be tweaked when changing this value.
+Rules:  A non-zero value goes into effect after a '--shutdown/start' sequence.
+A value of zero sets this parameter back to default value, but does not go into
+effect until after '--deinit/init' sequence.
 .br
 .TP
 .BI "--buffer-watershed="num
-Set kernel buffer watershed to num samples (2.6 only). When it'll remain only
-buffer-size - buffer-watershed free entry in the kernel buffer data will be
-flushed to daemon, most usefull value are in the range [0.25 - 0.5] * buffer-size.
+Set kernel buffer watershed to num samples (2.6 only). When
+buffer-size - buffer-watershed free entries remain in the kernel buffer, data will be
+flushed to the daemon.  Most useful values are in the range [0.25 - 0.5] * buffer-size.
+Same rules as defined for buffer-size.
 .br
 .TP
 .BI "--cpu-buffer-size="num
 Set kernel per cpu buffer to num samples (2.6 only). If you profile at high
 rate it can help to increase this if the log file show excessive count of
-sample lost cpu buffer overflow.
+sample lost cpu buffer overflow. Same rules as defined for buffer-size.
 .br
 .TP
 .BI "--event="[event|"default"]

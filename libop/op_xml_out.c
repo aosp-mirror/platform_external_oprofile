@@ -80,6 +80,7 @@ char const * xml_tag_map[] = {
 		"ext",
 	"unit_masks",
 		"default",
+		"category",
 	"unit_mask",
 		"mask",
 		"desc"

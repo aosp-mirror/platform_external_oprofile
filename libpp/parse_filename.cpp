@@ -82,6 +82,13 @@ string const parse_anon(string const & str, string const & str2)
 	string name = str2;
 	// Get rid of "{anon:
 	name.erase(0, 6);
+	// Catch the case where we end up with an empty string.  This should
+	// never happen, except where things have gone awfully bad with profile
+	// data collection, resulting in one or more bogus sample files.
+	if(0 == name.size())
+		throw invalid_argument("parse_anon() invalid name: " + str2 + "\n"
+			+ "This error indicates your sample data is suspect. It is "
+			+ "recommended you do a --reset and collect new profile data.");
 	// Get rid of the trailing '}'
 	name.erase(name.size() - 1, 1);
 	vector<string> parts = separate_token(str, '.');

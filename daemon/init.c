@@ -24,6 +24,7 @@
 #include "opd_anon.h"
 #include "opd_perfmon.h"
 #include "opd_printf.h"
+#include "opd_extended.h"
 
 #include "op_version.h"
 #include "op_config.h"
@@ -286,6 +287,8 @@ static void opd_sigterm(void)
 	opd_do_jitdumps();
 	opd_print_stats();
 	printf("oprofiled stopped %s", op_get_time());
+	opd_ext_deinitialize();
+
 	exit(EXIT_FAILURE);
 }
 

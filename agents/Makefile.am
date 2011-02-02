@@ -9,7 +9,13 @@ if BUILD_JVMPI_AGENT
 SUBDIRS +=      jvmpi
 endif
 
-install-exec-hook:
+INSTALL_EXEC_HOOK =
+
+if CHECK_ACCOUNT
+INSTALL_EXEC_HOOK += __install-exec-hook
+endif
+
+__install-exec-hook:
 	@getent passwd oprofile >/dev/null || ( \
 	echo "****************************************************************" ; \
 	echo "*    WARNING:" ; \
@@ -27,4 +33,4 @@ install-exec-hook:
 	echo "*      The special user 'oprofile' must have the default group set to 'oprofile'." ; \
 	echo "****************************************************************") ;
 
-
+install-exec-hook: $(INSTALL_EXEC_HOOK)

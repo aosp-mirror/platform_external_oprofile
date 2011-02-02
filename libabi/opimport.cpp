@@ -78,7 +78,8 @@ void extractor::extract(T & targ, void const * src_,
 	unsigned char const * src = static_cast<unsigned char const *>(src_)
 		+ theabi.need(off);
 	size_t nbytes = theabi.need(sz);
-	
+
+	targ = 0;
 	if (nbytes == 0)
 		return;
 	
@@ -91,7 +92,6 @@ void extractor::extract(T & targ, void const * src_,
 		     << " bytes @ " << off << " = " << (src - begin)
 		     << " : ";
 
-	targ = 0;
 	if (little_endian)
 		while(nbytes--)
 			targ = (targ << 8) | src[nbytes];
@@ -114,8 +114,6 @@ void import_from_abi(abi const & abi, void const * srcv,
 	extractor ext(abi, src, len);	
 
 	memcpy(head->magic, src + abi.need("offsetof_header_magic"), 4);
-	if (verbose)
-		cerr << hex << "magic = " << (int) head->magic[0] << ":" << (int) head->magic[1] << ":" << (int) head->magic[2] << ":" << (int) head->magic[3] << endl;
 
 	// begin extracting opd header
 	ext.extract(head->version, src, "sizeof_u32", "offsetof_header_version");

@@ -2,7 +2,7 @@
  * @file daemon/opd_ibs.h
  * AMD Family10h Instruction Based Sampling (IBS) handling.
  *
- * @remark Copyright 2008 OProfile authors
+ * @remark Copyright 2008-2010 OProfile authors
  * @remark Read the file COPYING
  *
  * @author Jason Yeh <jason.yeh@amd.com>
@@ -70,18 +70,14 @@ struct ibs_op_sample {
 	/* MSRC001_1037 IBS Op Data 3 Register */
 	unsigned int ibs_op_data3_low;
 	unsigned int ibs_op_data3_high;
+	/* MSRC001_1038 IBS DC Linear Address */
 	unsigned int ibs_op_ldst_linaddr_low;
 	unsigned int ibs_op_ldst_linaddr_high;
+	/* MSRC001_1039 IBS DC Physical Address */
 	unsigned int ibs_op_phys_addr_low;
 	unsigned int ibs_op_phys_addr_high;
-};
-
-
-enum IBSL1PAGESIZE {
-	L1TLB4K = 0,
-	L1TLB2M,
-	L1TLB1G,
-	L1TLB_INVALID
+	/* MSRC001_103B IBS Branch Target Address */
+	unsigned long ibs_op_brtgt_addr;
 };
 
 

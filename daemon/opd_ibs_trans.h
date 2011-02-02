@@ -24,8 +24,12 @@ struct ibs_translation_table {
 };
 
 
-extern void trans_ibs_fetch (struct transient * trans, unsigned int selected_flag, unsigned int size);
-extern void trans_ibs_op (struct transient * trans, unsigned int selected_flag, unsigned int size);
-extern void trans_ibs_op_ls (struct transient * trans, unsigned int selected_flag, unsigned int size);
-extern void trans_ibs_op_nb (struct transient * trans, unsigned int selected_flag, unsigned int size);
+extern void trans_ibs_fetch (struct transient * trans, unsigned int selected_flag);
+extern void trans_ibs_op (struct transient * trans, unsigned int selected_flag);
+extern void trans_ibs_op_ls (struct transient * trans, unsigned int selected_flag);
+extern void trans_ibs_op_nb (struct transient * trans, unsigned int selected_flag);
+extern int  trans_ibs_op_rip_invalid (struct transient * trans);
+extern void trans_ibs_op_mask_reserved (unsigned int family, struct transient * trans);
+extern void trans_ibs_op_ls_memaccess(struct transient * trans);
+extern void trans_ibs_op_bta (struct transient * trans);
 #endif // OPD_IBS_TRANS_H

@@ -35,6 +35,8 @@ struct opd_ext_feature {
 struct opd_ext_handlers {
 	// Extended init
 	int (*ext_init)(char const *);
+	// Extended deinit 
+	int (*ext_deinit)();
 	// Extended statistics
 	int (*ext_print_stats)();
 	// Extended sfile handlers
@@ -59,6 +61,13 @@ struct opd_ext_sfile_handlers {
  * Parse the specified extended feature
  */
 extern int opd_ext_initialize(char const * value);
+
+/**
+ * @param value: commandline input option string
+ *
+ * Deinitialize
+ */
+extern int opd_ext_deinitialize();
 
 /**
  * Print out extended feature statistics in oprofiled.log file

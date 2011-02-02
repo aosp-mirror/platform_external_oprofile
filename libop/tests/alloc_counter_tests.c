@@ -108,10 +108,8 @@ static char const * const events_p4_2[] = {
 static char const * const events_mips_34k[] = {
 	/* fail_to_alloc_counter: w/o 2006-8-03  Jeremiah Lott patch, see
 	 * ChangeLog */
-	"INSTRUCTIONS:500:0:1:1",
-	"JR_31_INSN_EXECED:500:0:1:1",
-	"BRANCH_INSNS_LAUNCHED:500:0:1:1",
-	"L2_MISSES:500:0:1:1",
+	"DTLB_MISSES:500:0:1:1",
+	"JR_31_INSNS:500:0:1:1",
 	NULL
 };
 
@@ -125,7 +123,7 @@ static struct allocated_counter const tests[] = {
 	{ CPU_PPRO, events_ppro_5, { 1, 0 }, no_failure },
 	{ CPU_P4, events_p4_1, { 3, 7, 0, 4, 2, 6, 1, 5 }, no_failure },
 	{ CPU_P4, events_p4_2, { -1 }, fail_to_alloc_counter },
-	{ CPU_MIPS_34K, events_mips_34k, { 1, 0, 2, 3 }, no_failure },
+	{ CPU_MIPS_34K, events_mips_34k, { 1, 0 }, no_failure },
 	{ CPU_NO_GOOD, 0, { 0 }, 0 }
 };
 

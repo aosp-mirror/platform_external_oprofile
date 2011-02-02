@@ -2,7 +2,7 @@
  * @file daemon/opd_ibs.c
  * AMD Family10h Instruction Based Sampling (IBS) handling.
  *
- * @remark Copyright 2007 OProfile authors
+ * @remark Copyright 2007-2010 OProfile authors
  * @remark Read the file COPYING
  *
  * @author Jason Yeh <jason.yeh@amd.com>
@@ -32,22 +32,22 @@
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
+#include <limits.h>
 
 extern op_cpu cpu_type;
 extern int no_event_ok;
 extern int sfile_equal(struct sfile const * sf, struct sfile const * sf2);
 extern void sfile_dup(struct sfile * to, struct sfile * from);
+extern char * session_dir;
 
-/* IBS Select Arrays/Counters */
+/* IBS Select Counters */
 static unsigned int ibs_selected_size;
+
+/* These flags store the IBS-derived events selection. */
 static unsigned int ibs_fetch_selected_flag;
-static unsigned int ibs_fetch_selected_size;
 static unsigned int ibs_op_selected_flag;
-static unsigned int ibs_op_selected_size;
 static unsigned int ibs_op_ls_selected_flag;
-static unsigned int ibs_op_ls_selected_size;
 static unsigned int ibs_op_nb_selected_flag;
-static unsigned int ibs_op_nb_selected_size;
 
 /* IBS Statistics */
 static unsigned long ibs_fetch_sample_stats;
@@ -64,6 +64,18 @@ struct opd_event ibs_vc[OP_MAX_IBS_COUNTERS];
 /* IBS Virtual Counter Index(VCI) Map*/
 unsigned int ibs_vci_map[OP_MAX_IBS_COUNTERS];
 
+/* CPUID information */
+unsigned int ibs_family;
+unsigned int ibs_model;
+unsigned int ibs_stepping;
+
+/* IBS Extended MSRs */
+static unsigned long ibs_bta_enabled;
+
+/* IBS log files */
+FILE * memaccess_log;
+FILE * bta_log;
+
 /**
  * This function converts IBS fetch event flags and values into
  * derived events. If the tagged (sampled) fetched caused a derived
@@ -75,7 +87,7 @@ static void opd_log_ibs_fetch(struct transient * trans)
 	if (!trans_fetch)
 		return;
 
-	trans_ibs_fetch(trans, ibs_fetch_selected_flag, ibs_fetch_selected_size);
+	trans_ibs_fetch(trans, ibs_fetch_selected_flag);
 }
 
 
@@ -89,9 +101,16 @@ static void opd_log_ibs_op(struct transient * trans)
 	if (!trans_op)
 		return;
 
-	trans_ibs_op(trans, ibs_op_selected_flag, ibs_op_selected_size);
-	trans_ibs_op_ls(trans, ibs_op_ls_selected_flag, ibs_op_ls_selected_size);
-	trans_ibs_op_nb(trans, ibs_op_nb_selected_flag, ibs_op_nb_selected_size);
+	trans_ibs_op_mask_reserved(ibs_family, trans);
+
+	if (trans_ibs_op_rip_invalid(trans) != 0)
+		return;
+
+	trans_ibs_op(trans, ibs_op_selected_flag);
+	trans_ibs_op_ls(trans, ibs_op_ls_selected_flag);
+	trans_ibs_op_nb(trans, ibs_op_nb_selected_flag);
+	trans_ibs_op_ls_memaccess(trans);
+	trans_ibs_op_bta(trans);
 }
 
 
@@ -150,6 +169,26 @@ out:
 }
 
 
+static void get_ibs_bta_status()
+{
+	FILE * fp = NULL;
+	char buf[PATH_MAX];
+
+	/* Default to disable */
+	ibs_bta_enabled = 0;
+
+	snprintf(buf, PATH_MAX, "/dev/oprofile/ibs_op/branch_target");
+	fp = fopen(buf, "r");
+	if (!fp)
+		return;
+
+	while (fgets(buf, PATH_MAX, fp) != NULL)
+		ibs_bta_enabled = strtoul(buf, NULL, 10);	
+
+	fclose(fp);
+}
+
+
 void code_ibs_fetch_sample(struct transient * trans)
 {
 	struct ibs_fetch_sample * trans_fetch = NULL;
@@ -169,12 +208,12 @@ void code_ibs_fetch_sample(struct transient * trans)
 
 	trans_fetch->rip = pop_buffer_value(trans);
 
-	trans_fetch->ibs_fetch_lin_addr_low = pop_buffer_value(trans);
-	trans_fetch->ibs_fetch_lin_addr_high = pop_buffer_value(trans);
+	trans_fetch->ibs_fetch_lin_addr_low   = pop_buffer_value(trans);
+	trans_fetch->ibs_fetch_lin_addr_high  = pop_buffer_value(trans);
 
-	trans_fetch->ibs_fetch_ctl_low = pop_buffer_value(trans);
-	trans_fetch->ibs_fetch_ctl_high = pop_buffer_value(trans);
-	trans_fetch->ibs_fetch_phys_addr_low = pop_buffer_value(trans);
+	trans_fetch->ibs_fetch_ctl_low        = pop_buffer_value(trans);
+	trans_fetch->ibs_fetch_ctl_high       = pop_buffer_value(trans);
+	trans_fetch->ibs_fetch_phys_addr_low  = pop_buffer_value(trans);
 	trans_fetch->ibs_fetch_phys_addr_high = pop_buffer_value(trans);
 
 	verbprintf(vsamples,
@@ -197,6 +236,30 @@ void code_ibs_fetch_sample(struct transient * trans)
 	free(trans_fetch);
 	free(trans->ext);
 	trans->ext = NULL;
+}
+
+
+static void get_ibs_op_bta_sample(struct transient * trans,
+				    struct ibs_op_sample * trans_op)
+{
+	// Check remaining
+	if (!enough_remaining(trans, 2)) {
+		verbprintf(vext, "not enough remaining\n");
+		trans->remaining = 0;
+		ibs_op_incomplete_stats++;
+		return;
+	}
+
+	if (ibs_bta_enabled == 1) {
+		trans_op->ibs_op_brtgt_addr = pop_buffer_value(trans);
+	
+		// Check if branch target address is valid (MSRC001_1035[37] == 1]
+		if ((trans_op->ibs_op_data1_high & (0x00000001 << 5)) == 0) {
+			trans_op->ibs_op_brtgt_addr = 0;
+		}
+	} else {
+		trans_op->ibs_op_brtgt_addr = 0;
+	}
 }
 
 
@@ -233,8 +296,10 @@ void code_ibs_op_sample(struct transient * trans)
 	trans_op->ibs_op_phys_addr_low     = pop_buffer_value(trans);
 	trans_op->ibs_op_phys_addr_high    = pop_buffer_value(trans);
 
+	get_ibs_op_bta_sample(trans, trans_op);
+
 	verbprintf(vsamples,
-		   "IBS_OP_X CPU:%ld PID:%d RIP:%lx D1HI:%x D1LO:%x D2LO:%x D3HI:%x D3LO:%x L_LO:%x P_LO:%x\n",
+	   "IBS_OP_X CPU:%ld PID:%d RIP:%lx D1HI:%x D1LO:%x D2LO:%x D3HI:%x D3LO:%x L_LO:%x P_LO:%x\n",
 		   trans->cpu,
 		   trans->tgid,
 		   trans_op->rip,
@@ -339,16 +404,12 @@ static int ibs_parse_and_set_events(char * str)
 		// Grouping
 		if (IS_IBS_FETCH(event->val)) {
 			ibs_fetch_selected_flag |= 1 << IBS_FETCH_OFFSET(event->val);
-			ibs_fetch_selected_size++;
 		} else if (IS_IBS_OP(event->val)) {
 			ibs_op_selected_flag |= 1 << IBS_OP_OFFSET(event->val);
-			ibs_op_selected_size++;
 		} else if (IS_IBS_OP_LS(event->val)) {
 			ibs_op_ls_selected_flag |= 1 << IBS_OP_LS_OFFSET(event->val);
-			ibs_op_ls_selected_size++;
 		} else if (IS_IBS_OP_NB(event->val)) {
 			ibs_op_nb_selected_flag |= 1 << IBS_OP_NB_OFFSET(event->val);
-			ibs_op_nb_selected_size++;
 		} else {
 			return -1;
 		}
@@ -402,7 +463,6 @@ static int ibs_parse_and_set_um_fetch(char const * str)
 }
 
 
-
 static int ibs_parse_and_set_um_op(char const * str, unsigned long int * ibs_op_um)
 {
 	char * end = NULL;
@@ -415,6 +475,37 @@ static int ibs_parse_and_set_um_op(char const * str, unsigned long int * ibs_op_
 		return -1;
 	}
 	return 0;
+}
+
+
+static void check_cpuid_family_model_stepping()
+{
+#if defined(__i386__) || defined(__x86_64__) 
+       union {
+                unsigned eax;
+                struct {
+                        unsigned stepping : 4;
+                        unsigned model : 4;
+                        unsigned family : 4;
+                        unsigned res : 4;
+                        unsigned ext_model : 4;
+                        unsigned ext_family : 8;
+                        unsigned res2 : 4;
+                };
+        } v;
+	unsigned ebx, ecx, edx;
+
+	/* CPUID Fn0000_0001_EAX Family, Model, Stepping */
+	asm ("cpuid" : "=a" (v.eax), "=b" (ebx), "=c" (ecx), "=d" (edx) : "0" (1));
+
+	ibs_family   = v.family + v.ext_family;
+	ibs_model    = v.model + v.ext_model;
+	ibs_stepping = v.stepping;
+#else
+	ibs_family   = 0;
+	ibs_model    = 0;
+	ibs_stepping = 0;
+#endif
 }
 
 
@@ -532,15 +623,67 @@ static int ibs_init(char const * argv)
 
 	// Allow no event
 	no_event_ok = 1;
+
+	check_cpuid_family_model_stepping();
+
+	get_ibs_bta_status();
+
+	/* Create IBS memory access log */
+	memaccess_log = NULL;
+	if (ibs_op_um & 0x2) {
+		char filename[1024];
+		strncpy(filename, session_dir, 1023);
+		strncat(filename, "/samples/ibs_memaccess.log", 1024);
+		if ((memaccess_log = fopen(filename, "w")) == NULL) {
+			verbprintf(vext, "Warning: Cannot create file %s\n", filename);
+			
+		} else {
+			fprintf (memaccess_log, "# IBS Memory Access Log\n\n");
+			fprintf (memaccess_log, "# Format: app_cookie,cookie,cpu,tgid,tid,pc,branch-target-address,\n");
+			fprintf (memaccess_log, "#         phy-hi:phy-low,lin-hi:lin-low,accese-type,latency\n\n");
+		}
+	}
+
+	// Create IBS Branch Target Address (BTA) log	
+	bta_log = NULL;
+	if (ibs_bta_enabled) {
+		char filename[1024];
+		strncpy(filename, session_dir, 1023);
+		strncat(filename, "/samples/ibs_bta.log", 1024);
+		if ((bta_log = fopen(filename, "w")) == NULL) {
+			verbprintf(vext, "Warning: Cannot create file %s\n", filename);
+		} else {
+			fprintf (bta_log, "# IBS Memory Access Log\n\n");
+			fprintf (bta_log, "# Format: app_cookie,cookie,cpu,tgid,tid,pc,branch-target-address\n\n");
+		}
+	}
+
+	return 0;
+}
+
+
+static int ibs_deinit()
+{
+	if (memaccess_log) {
+		fclose (memaccess_log);
+		memaccess_log = NULL;
+	}
+	
+	if (bta_log) {
+		fclose (bta_log);
+		bta_log = NULL;
+	}
 	return 0;
 }
 
 
 static int ibs_print_stats()
 {
-	printf("Nr. IBS Fetch samples     : %lu (%lu entries)\n", ibs_fetch_sample_stats, (ibs_fetch_sample_stats * 7));
+	printf("Nr. IBS Fetch samples     : %lu (%lu entries)\n", 
+		ibs_fetch_sample_stats, (ibs_fetch_sample_stats * 7));
 	printf("Nr. IBS Fetch incompletes : %lu\n", ibs_fetch_incomplete_stats);
-	printf("Nr. IBS Op samples        : %lu (%lu entries)\n", ibs_op_sample_stats, (ibs_op_sample_stats * 13));
+	printf("Nr. IBS Op samples        : %lu (%lu entries)\n", 
+		ibs_op_sample_stats, (ibs_op_sample_stats * 13));
 	printf("Nr. IBS Op incompletes    : %lu\n", ibs_op_incomplete_stats);
 	printf("Nr. IBS derived events    : %lu\n", ibs_derived_event_stats);
 	return 0;
@@ -686,7 +829,8 @@ struct opd_ext_sfile_handlers ibs_sfile_handlers =
 
 struct opd_ext_handlers ibs_handlers =
 {
-	.ext_init  = &ibs_init,
+	.ext_init        = &ibs_init,
+	.ext_deinit      = &ibs_deinit,
 	.ext_print_stats = &ibs_print_stats,
-	.ext_sfile = &ibs_sfile_handlers
+	.ext_sfile       = &ibs_sfile_handlers
 };

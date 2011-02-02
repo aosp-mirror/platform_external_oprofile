@@ -49,6 +49,31 @@ error_if_empty()
 	fi
 }
 
+# guess_number_base() checks if string is a valid octal(8), hexidecimal(16),
+# or decimal number(10). The value is returned in $?. Returns 0, if string
+# isn't a octal, hexidecimal, or decimal number.
+guess_number_base()
+{
+	if [[ "$1" =~ ^0[0-7]*$ ]] ; then 
+		return 8;
+	elif [[ "$1" =~ ^0x[0-9a-fA-F]+$ ]] ; then
+		return 16;
+	elif [[ "$1" =~ ^[1-9][0-9]*$ ]] ; then
+		return 10;
+	else
+		return 0;
+	fi
+}
+
+# check value is a valid number
+error_if_not_number()
+{
+	guess_number_base $2
+	if test "$?" -eq 0 ; then
+		echo "Argument for $1, $2, is not a valid number." >&2
+		exit 1
+	fi
+}
 
 # rm_device arguments $1=file_name
 rm_device()
@@ -147,21 +172,31 @@ opcontrol: usage:
        cpu:      per CPU profiles
        all:      all of the above
 
-   -c/--callgraph=#depth         enable callgraph sample collection with a maximum depth.
-                                 Use 0 to disable callgraph profiling.
+   -c/--callgraph=#depth         enable callgraph sample collection with a
+                                 maximum depth. Use '0' to disable callgraph
+                                 profiling.
    --session-dir=dir             place sample database in dir instead of
                                  default location (/var/lib/oprofile)
    -i/--image=name[,names]       list of binaries to profile (default is "all")
    --vmlinux=file                vmlinux kernel image
    --no-vmlinux                  no kernel image (vmlinux) available
    --kernel-range=start,end      kernel range vma address in hexadecimal
-   --buffer-size=num             kernel buffer size in sample units
-   --buffer-watershed            kernel buffer watershed in sample units (2.6 only=
-   --cpu-buffer-size=num         per-cpu buffer size in units (2.6 only)
-   --note-table-size             kernel notes buffer size in notes units (2.4 only)
+   --buffer-size=num             kernel buffer size in sample units.
+                                 Rules: A non-zero value goes into effect after
+                                 a '--shutdown/start' sequence.  A value of
+                                 zero sets this parameter back to default value
+                                 but does not go into effect until after a
+                                 '--deinit/init' sequence.
+   --buffer-watershed            kernel buffer watershed in sample units (2.6
+                                 kernel). Same rules as defined for
+                                 buffer-size.
+   --cpu-buffer-size=num         per-cpu buffer size in units (2.6 kernel)
+                                 Same rules as defined for buffer-size.
+   --note-table-size             kernel notes buffer size in notes units (2.4
+                                 kernel)
 
    --xen                         Xen image (for Xen only)
-   --active-domains=<list>       List of domains in profiling session (for Xen only)
+   --active-domains=<list>       List of domains in profiling session (for Xen)
                                  (list contains domain ids separated by commas)
 EOF
 }
@@ -744,6 +779,7 @@ do_options()
 				;;
 			--buffer-size)
 				error_if_empty $arg $val
+				error_if_not_number $arg $val
 				BUF_SIZE=$val
 				DO_SETUP=yes
 				;;
@@ -753,6 +789,7 @@ do_options()
 					exit 1
 				fi
 				error_if_empty $arg $val
+				error_if_not_number $arg $val
 				BUF_WATERSHED=$val
 				DO_SETUP=yes
 				;;
@@ -762,6 +799,7 @@ do_options()
 					exit 1
 				fi
 				error_if_empty $arg $val
+				error_if_not_number $arg $val
 				CPU_BUF_SIZE=$val
 				DO_SETUP=yes
 				;;
@@ -792,6 +830,7 @@ do_options()
 					echo "Call-graph profiling unsupported on this kernel/hardware" >&2
 					exit 1
 				fi
+				error_if_not_number $arg $val
 				CALLGRAPH=$val
 				DO_SETUP=yes
 				;;
@@ -1011,7 +1050,6 @@ do_kill_daemon()
 	sleep 1
 	# already removed unless we forced the kill
 	rm -f "$SESSION_DIR/lock"
-	cp -r /dev/oprofile/stats "$SAMPLES_DIR/current"
 }
 
 
@@ -1598,7 +1636,7 @@ do_dump_data()
 			fi
 		fi
 		# trigger oprofiled to execute opjitconv
-		echo do_jitconv > $SESSION_DIR/opd_pipe
+		echo do_jitconv >> $SESSION_DIR/opd_pipe
 		rm -f "$SESSION_DIR/complete_dump"
 		echo 1 > $MOUNT/dump
 		# loop until the complete_dump file is created to
@@ -1616,6 +1654,8 @@ do_dump_data()
 		# HACK !
 		sleep 2
 	fi
+	cp -r /dev/oprofile/stats "$SAMPLES_DIR/current"
+
 	return 0;
 }
 
@@ -1856,13 +1896,20 @@ verify_ibs()
 			IBS_FETCH_COUNT=$IBS_COUNT
 			IBS_FETCH_MASK=$IBS_MASK
 		elif test "$IBS_FETCH_COUNT" != "$IBS_COUNT" ; then
-			echo "All IBS Fetch must have the same count."
+			echo "ERROR: All IBS Fetch must have the same count."
 			exit 1
 		fi
 
 		# Check IBS_MASK consistency
 		if test "$IBS_FETCH_MASK" != "$IBS_MASK" ; then
-			echo "All IBS Fetch must have the same unitmask."
+			echo "ERROR: All IBS Fetch must have the same unitmask."
+			exit 1
+		fi
+
+		# Check IBS_FETCH_COUNT within range
+		if test "$IBS_FETCH_COUNT" -gt 1048575 ; then 
+			echo "ERROR: IBS Fetch count is too large."
+			echo "       The maximum IBS-fetch count is 1048575."
 			exit 1
 		fi
 
@@ -1881,6 +1928,28 @@ verify_ibs()
 			echo "All IBS Op must have the same unitmask."
 			exit 1
 		fi
+		
+		# Check IBS_OP_COUNT within range
+		case "$CPUTYPE" in
+			x86-64/family10)
+				if test "$IBS_OP_COUNT" -gt 1048575 ; then 
+					echo "ERROR: IBS Op count is too large."
+					echo "       The maximum IBS-fetch count is 1048575."
+					exit 1
+				fi
+				;;
+
+			x86-64/family12h|\
+			x86-64/family14h|\
+			x86-64/family15h)
+				if test "$IBS_OP_COUNT" -gt 134217727 ; then 
+					echo "ERROR: IBS Op count is too large."
+					echo "       The maximum IBS-Op count is 134217727."
+					exit 1
+				fi
+				;;
+			*)
+		esac
 	fi
 
 	return
@@ -1933,10 +2002,32 @@ do_param_setup_ibs()
 			# NOTE: We default to use dispatched_op if available. 
 			#       Some of the older family10 system does not have
 			#       dispatched_ops feature.
-			#	dispatched op is enabled by bit 1 of the unitmask
+			#       Dispatched op is enabled by bit 0 of the unitmask
+			IBS_OP_DISPATCHED_OP=$(( IBS_OP_UNITMASK & 0x1 ))
 			if test -f $MOUNT/ibs_op/dispatched_ops ; then
-				IBS_OP_DISPATCHED_OP=$(( IBS_OP_UNITMASK & 0x1 ))
 				set_param ibs_op/dispatched_ops $IBS_OP_DISPATCHED_OP
+			else
+				if test $IBS_OP_DISPATCHED_OP -eq 1 ; then
+					echo "ERROR: IBS Op dispatched ops is not supported."
+					exit 1
+				fi
+			fi
+		
+			# NOTE: BTA is enabled by bit 2 of the unitmask
+			IBS_OP_BTA=$(( IBS_OP_UNITMASK & 0x4 ))
+			if test -f $MOUNT/ibs_op/branch_target; then
+				if [ "$IBS_OP_BTA" = "4" ] ; then
+					set_param ibs_op/branch_target 1
+				else
+					set_param ibs_op/branch_target 0
+				fi
+
+				# TODO: Check if write successful
+			else
+				if test $IBS_OP_BTA -eq 1 ; then
+					echo "ERROR: IBS Op Branch Target Address is not supported."
+					exit 1
+				fi
 			fi
 		else
 			set_param ibs_op/enable 0

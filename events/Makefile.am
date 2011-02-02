@@ -17,6 +17,7 @@ event_files = \
 	i386/atom/events i386/atom/unit_masks \
 	i386/core_i7/events i386/core_i7/unit_masks \
 	i386/nehalem/events i386/nehalem/unit_masks \
+	i386/westmere/events i386/westmere/unit_masks \
 	ia64/ia64/events ia64/ia64/unit_masks \
 	ia64/itanium2/events ia64/itanium2/unit_masks \
 	ia64/itanium/events ia64/itanium/unit_masks \
@@ -35,10 +36,15 @@ event_files = \
 	x86-64/hammer/events x86-64/hammer/unit_masks \
 	x86-64/family10/events x86-64/family10/unit_masks \
 	x86-64/family11h/events x86-64/family11h/unit_masks \
+	x86-64/family12h/events x86-64/family12h/unit_masks \
+	x86-64/family14h/events x86-64/family14h/unit_masks \
+	x86-64/family15h/events x86-64/family15h/unit_masks \
 	arm/xscale1/events arm/xscale1/unit_masks \
 	arm/xscale2/events arm/xscale2/unit_masks \
 	arm/armv6/events arm/armv6/unit_masks \
+	arm/armv7-common/events arm/armv7-common/unit_masks \
 	arm/armv7/events arm/armv7/unit_masks \
+	arm/armv7-ca9/events arm/armv7-ca9/unit_masks \
 	arm/mpcore/events arm/mpcore/unit_masks \
 	avr32/events avr32/unit_masks \
 	mips/20K/events mips/20K/unit_masks \
@@ -53,6 +59,9 @@ event_files = \
 	mips/r12000/events mips/r12000/unit_masks \
 	mips/vr5432/events mips/vr5432/unit_masks \
 	mips/vr5500/events mips/vr5500/unit_masks \
+	mips/loongson2/events mips/loongson2/unit_masks \
+	mips/1004K/events mips/1004K/unit_masks \
+	mips/74K/events mips/74K/unit_masks \
 	ppc/7450/events ppc/7450/unit_masks \
 	ppc/e500/events ppc/e500/unit_masks \
 	ppc/e500v2/events ppc/e500v2/unit_masks \

@@ -1,8 +1,8 @@
 /**
  * @file daemon/opd_ibs_macro.h
- * AMD Family10h Instruction Based Sampling (IBS) related macro.
+ * AMD Instruction Based Sampling (IBS) related macro.
  *
- * @remark Copyright 2008 OProfile authors
+ * @remark Copyright 2008-2010 OProfile authors
  * @remark Read the file COPYING
  *
  * @author Jason Yeh <jason.yeh@amd.com>
@@ -16,7 +16,8 @@
 
 /**
  * The following defines are bit masks that are used to select
- * IBS fetch event flags and values at the MSR level.
+ * IBS fetch event flags and values at the
+ * MSRC001_1030 IBS Fetch Control Register (IbsFetchCtl)
  */
 #define FETCH_MASK_LATENCY  0x0000ffff
 #define FETCH_MASK_COMPLETE 0x00040000
@@ -34,7 +35,10 @@
  * The following defines are bit masks that are used to select
  * IBS op event flags and values at the MSR level.
  */
+
+/* MSRC001_1035 IBS Op Data Register (IbsOpData) */
 #define BR_MASK_RETIRE           0x0000ffff
+#define MASK_RIP_INVALID         0x00000040
 #define BR_MASK_BRN_RET          0x00000020
 #define BR_MASK_BRN_MISP         0x00000010
 #define BR_MASK_BRN_TAKEN        0x00000008
@@ -42,17 +46,19 @@
 #define BR_MASK_MISP_RETURN      0x00000002
 #define BR_MASK_BRN_RESYNC       0x00000001
 
+/* MSRC001_1036 IBS Op Data Register (IbsOpData2) */
 #define NB_MASK_L3_STATE         0x00000020
 #define NB_MASK_REQ_DST_PROC     0x00000010
 #define NB_MASK_REQ_DATA_SRC     0x00000007
 
+/* MSRC001_1037 IBS Op Data Register (IbsOpData3) */
 #define DC_MASK_L2_HIT_1G        0x00080000
 #define DC_MASK_PHY_ADDR_VALID   0x00040000
 #define DC_MASK_LIN_ADDR_VALID   0x00020000
 #define DC_MASK_MAB_HIT          0x00010000
 #define DC_MASK_LOCKED_OP        0x00008000
-#define DC_MASK_WC_MEM_ACCESS    0x00004000
-#define DC_MASK_UC_MEM_ACCESS    0x00002000
+#define DC_MASK_UC_MEM_ACCESS    0x00004000
+#define DC_MASK_WC_MEM_ACCESS    0x00002000
 #define DC_MASK_ST_TO_LD_CANCEL  0x00001000
 #define DC_MASK_ST_TO_LD_FOR     0x00000800
 #define DC_MASK_ST_BANK_CONFLICT 0x00000400
@@ -77,10 +83,9 @@
  * at 0xf000.
  *
  * The definitions in this file *must* match definitions
- * of IBS derived events in gh-events.xml and in the
- * oprofile AMD Family 10h events file. More information
+ * of IBS derived events. More information
  * about IBS derived events is given in the Software Oprimization
- * Guide for AMD Family 10h Processors.
+ * Guide.
  */
 
 /**
@@ -108,6 +113,8 @@
 #define IBS_FETCH_MAX            (IBS_FETCH_END - IBS_FETCH_BASE + 1)
 #define IS_IBS_FETCH(x)          (IBS_FETCH_BASE <= x && x <= IBS_FETCH_END)
 #define IBS_FETCH_OFFSET(x)      (x - IBS_FETCH_BASE)
+#define CHECK_FETCH_SELECTED_FLAG(x)	if ( selected_flag & (1 << IBS_FETCH_OFFSET(x)))
+
 
 /**
  * The following defines associate a 16-bit select value with an IBS
@@ -129,6 +136,8 @@
 #define IBS_OP_MAX                (IBS_OP_END - IBS_OP_BASE + 1)
 #define IS_IBS_OP(x)              (IBS_OP_BASE <= x && x <= IBS_OP_END)
 #define IBS_OP_OFFSET(x)          (x - IBS_OP_BASE)
+#define CHECK_OP_SELECTED_FLAG(x)	if ( selected_flag & (1 << IBS_OP_OFFSET(x)))
+
 
 /**
  * The following defines associate a 16-bit select value with an IBS
@@ -166,6 +175,7 @@
 #define IBS_OP_LS_MAX            (IBS_OP_LS_END - IBS_OP_LS_BASE + 1)
 #define IS_IBS_OP_LS(x)          (IBS_OP_LS_BASE <= x && x <= IBS_OP_LS_END)
 #define IBS_OP_LS_OFFSET(x)      (x - IBS_OP_LS_BASE)
+#define CHECK_OP_LS_SELECTED_FLAG(x)	if ( selected_flag & (1 << IBS_OP_LS_OFFSET(x)))
 
 
 /**
@@ -191,6 +201,7 @@
 #define IBS_OP_NB_MAX            (IBS_OP_NB_END - IBS_OP_NB_BASE + 1)
 #define IS_IBS_OP_NB(x)          (IBS_OP_NB_BASE <= x && x <= IBS_OP_NB_END)
 #define IBS_OP_NB_OFFSET(x)      (x - IBS_OP_NB_BASE)
+#define CHECK_OP_NB_SELECTED_FLAG(x)	if ( selected_flag & (1 << IBS_OP_NB_OFFSET(x)))
 
 
 #define OP_MAX_IBS_COUNTERS      (IBS_FETCH_MAX + IBS_OP_MAX + IBS_OP_LS_MAX + IBS_OP_NB_MAX)
@@ -215,8 +226,18 @@
 /** Bit 52 IbsPhyAddrValid: instruction fetch physical address valid. */
 #define IBS_FETCH_PHYS_ADDR_VALID(x)            ((x->ibs_fetch_ctl_high & FETCH_MASK_PHY_ADDR) != 0)
 
+enum IBSL1PAGESIZE {
+	L1TLB4K = 0,
+	L1TLB2M,
+	L1TLB1G,
+	L1TLB_INVALID
+};
+
 /** Bits 54:53 IbsL1TlbPgSz: instruction cache L1TLB page size. */
 #define IBS_FETCH_TLB_PAGE_SIZE(x)              ((unsigned short)((x->ibs_fetch_ctl_high >> 21) & 0x3))
+#define IBS_FETCH_TLB_PAGE_SIZE_4K(x)           (IBS_FETCH_TLB_PAGE_SIZE(x) == L1TLB4K)
+#define IBS_FETCH_TLB_PAGE_SIZE_2M(x)           (IBS_FETCH_TLB_PAGE_SIZE(x) == L1TLB2M)
+#define IBS_FETCH_TLB_PAGE_SIZE_1G(x)           (IBS_FETCH_TLB_PAGE_SIZE(x) == L1TLB1G)
 
 /** Bit 55 IbsL1TlbMiss: instruction cache L1TLB miss. */
 #define IBS_FETCH_M_L1_TLB_MISS(x)              ((x->ibs_fetch_ctl_high & FETCH_MASK_L1_MISS) != 0)
@@ -252,22 +273,25 @@
 #define IBS_OP_TAG_TO_RETIRE_CYCLES(x)          ((unsigned short)((x->ibs_op_data1_low >> 16) & BR_MASK_RETIRE))
 
 /** 32 op_branch_resync : resync macro-op. */
-#define IBS_OP_OP_BRANCH_RESYNC(x)              ((x->ibs_op_data1_high & BR_MASK_BRN_RESYNC) != 0)
+#define IBS_OP_BRANCH_RESYNC(x)                 ((x->ibs_op_data1_high & BR_MASK_BRN_RESYNC) != 0)
 
 /** 33 op_mispredict_return : mispredicted return macro-op. */
-#define IBS_OP_OP_MISPREDICT_RETURN(x)          ((x->ibs_op_data1_high & BR_MASK_MISP_RETURN) != 0)
+#define IBS_OP_MISPREDICT_RETURN(x)             ((x->ibs_op_data1_high & BR_MASK_MISP_RETURN) != 0)
 
 /** 34 IbsOpReturn: return macro-op. */
-#define IBS_OP_OP_RETURN(x)                     ((x->ibs_op_data1_high & BR_MASK_RETURN) != 0)
+#define IBS_OP_RETURN(x)                        ((x->ibs_op_data1_high & BR_MASK_RETURN) != 0)
 
 /** 35 IbsOpBrnTaken: taken branch macro-op. */
-#define IBS_OP_OP_BRANCH_TAKEN(x)               ((x->ibs_op_data1_high & BR_MASK_BRN_TAKEN) != 0)
+#define IBS_OP_BRANCH_TAKEN(x)                  ((x->ibs_op_data1_high & BR_MASK_BRN_TAKEN) != 0)
 
 /** 36 IbsOpBrnMisp: mispredicted branch macro-op.  */
-#define IBS_OP_OP_BRANCH_MISPREDICT(x)          ((x->ibs_op_data1_high & BR_MASK_BRN_MISP) != 0)
+#define IBS_OP_BRANCH_MISPREDICT(x)             ((x->ibs_op_data1_high & BR_MASK_BRN_MISP) != 0)
 
 /** 37 IbsOpBrnRet: branch macro-op retired. */
-#define IBS_OP_OP_BRANCH_RETIRED(x)             ((x->ibs_op_data1_high & BR_MASK_BRN_RET) != 0)
+#define IBS_OP_BRANCH_RETIRED(x)                ((x->ibs_op_data1_high & BR_MASK_BRN_RET) != 0)
+
+/** 38 IbsRipInvalid: RIP invalid. */
+#define IBS_OP_RIP_INVALID(x)                   ((x->ibs_op_data1_high & MASK_RIP_INVALID) != 0)
 
 /**
  * MSRC001_1036 IBS Op Data 2 Register (IbsOpData2)
@@ -282,10 +306,18 @@
 /** 2:0 NbIbsReqSrc: Northbridge IBS request data source */
 #define IBS_OP_NB_IBS_REQ_SRC(x)                ((unsigned char)(x->ibs_op_data2_low & NB_MASK_REQ_DATA_SRC))
 
+#define IBS_OP_NB_IBS_REQ_SRC_01(x)             (IBS_OP_NB_IBS_REQ_SRC(x) == 0x01)
+
+#define IBS_OP_NB_IBS_REQ_SRC_02(x)             (IBS_OP_NB_IBS_REQ_SRC(x) == 0x02)
+
+#define IBS_OP_NB_IBS_REQ_SRC_03(x)             (IBS_OP_NB_IBS_REQ_SRC(x) == 0x03)
+
+#define IBS_OP_NB_IBS_REQ_SRC_07(x)             (IBS_OP_NB_IBS_REQ_SRC(x) == 0x07)
+
 /**
  * MSRC001_1037 IBS Op Data3 Register
  *
- * Bits 48:32   IbsDcMissLat
+ * Bits 47:32   IbsDcMissLat
  */
 #define IBS_OP_DC_MISS_LATENCY(x)               ((unsigned short)(x->ibs_op_data3_high & 0xffff))
 
@@ -328,11 +360,11 @@
 /** 12 ibs_dc_st_to_ld_can: Data forwarding from store to load operation cancelled */
 #define IBS_OP_IBS_DC_ST_TO_LD_CAN(x)           ((x->ibs_op_data3_low & DC_MASK_ST_TO_LD_CANCEL) != 0)
 
-/** 13 ibs_dc_uc_mem_acc: UC memory access */
-#define IBS_OP_IBS_DC_UC_MEM_ACC(x)             ((x->ibs_op_data3_low & DC_MASK_UC_MEM_ACCESS) != 0)
-
-/** 14 ibs_dc_wc_mem_acc : WC memory access */
+/** 13 ibs_dc_wc_mem_acc : WC memory access */
 #define IBS_OP_IBS_DC_WC_MEM_ACC(x)             ((x->ibs_op_data3_low & DC_MASK_WC_MEM_ACCESS) != 0)
+
+/** 14 ibs_dc_uc_mem_acc : UC memory access */
+#define IBS_OP_IBS_DC_UC_MEM_ACC(x)             ((x->ibs_op_data3_low & DC_MASK_UC_MEM_ACCESS) != 0)
 
 /** 15 ibs_locked_op: Locked operation */
 #define IBS_OP_IBS_LOCKED_OP(x)                 ((x->ibs_op_data3_low & DC_MASK_LOCKED_OP) != 0)
@@ -361,6 +393,5 @@
  * derived event count by the specified count value.
  */
 #define AGG_IBS_COUNT(EV, COUNT)        opd_log_ibs_count(EV, trans, COUNT)
-
 
 #endif /*OPD_IBS_MACRO_H*/

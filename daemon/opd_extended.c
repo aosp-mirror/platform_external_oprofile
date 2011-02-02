@@ -109,6 +109,20 @@ err_out:
 }
 
 
+int opd_ext_deinitialize()
+{
+	int ret = EXIT_FAILURE;
+
+	if(opd_ext_feat_index == -1) {
+		return 0;
+	}
+
+	ret = ext_feature_table[opd_ext_feat_index].handlers->ext_deinit();
+
+	return ret;
+}
+
+
 void opd_ext_print_stats()
 {
 	if (is_ext_enabled()

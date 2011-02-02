@@ -28,6 +28,8 @@ $typename = "${typename}(<${typename}(, ${typename})*>)*"
 # pointer is ugly but we can't add any grouping to not overrun 9 max group
 # in left pattern rules side..
 $typename = "(${typename}[ ]*\**|unsigned short[ ]**\**|unsigned int[ ]*\**|unsigned long[ ]*\**|unsigned char[ ]*\**|signed char[ ]*\**|long long[ ]*\**|unsigned long long[ ]*\**|long double[ ]*\**)"
+$ptrdiff_t_type = "(int|long)"
+
 
 # FIXME: really discussable but simplify output and the next pattern.
 "\<std::" = ""
@@ -44,7 +46,7 @@ $typename = "(${typename}[ ]*\**|unsigned short[ ]**\**|unsigned int[ ]*\**|unsi
 "\<(multi)?map<${typename}, ${typename}, less<\2>>" = "\1map<\2, \8>"
 
 "\<bitset<(${integer}), unsigned long>" = "bitset<\1>"
-"\<([io]stream_iterator)<char, @PTRDIFF_T_TYPE@>" = "\1<char>"
+"\<([io]stream_iterator)<char, ${ptrdiff_t_type}>" = "\1<char>"
 
 # common to all supported gcc version.
 "\<deque<${typename}, allocator<\1>, 0>" = "deque<\1>"
@@ -109,11 +111,11 @@ $typename = "(${typename}[ ]*\**|unsigned short[ ]**\**|unsigned int[ ]*\**|unsi
 # form for 2.95/3.2
 # "\<(multi)?map<${typename}, ${typename}, less<\2>>" = "\1map<\2, \8>"
 
-"\<bitset<\(@SIZE_T_TYPE@\)(${integer})>" = "bitset<\1>"
+"\<bitset<\(unsigned( long)?\)(${integer})>" = "bitset<\2>"
 
 # iterator
-"\<iterator<(input|output|forward|bidirectional|random)_iterator_tag, ${typename}, (@PTRDIFF_T_TYPE@), \8\*, \8&>" = "iterator<\1_iterator_tag, \2>"
-"\<([io]stream_iterator)<${typename}, char, char_traits<char>, @PTRDIFF_T_TYPE@>" = "\1<\2>"
+"\<iterator<(input|output|forward|bidirectional|random)_iterator_tag, ${typename}, (${ptrdiff_t_type}), \8\*, \8&>" = "iterator<\1_iterator_tag, \2>"
+"\<([io]stream_iterator)<${typename}, char, char_traits<char>, ${ptrdiff_t_type}>" = "\1<\2>"
 
 # __gnu_cxx::__normal_iterator are used in two context: basic_string<> and
 # vector<T> we decay them to string::iterator, vector<T>::iterator

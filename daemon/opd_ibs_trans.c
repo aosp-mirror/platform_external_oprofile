@@ -1,8 +1,8 @@
 /**
  * @file daemon/opd_ibs_trans.c
- * AMD Family10h Instruction Based Sampling (IBS) translation.
+ * AMD Instruction Based Sampling (IBS) translation.
  *
- * @remark Copyright 2008 OProfile authors
+ * @remark Copyright 2008 - 2010 OProfile authors
  * @remark Read the file COPYING
  *
  * @author Jason Yeh <jason.yeh@amd.com>
@@ -20,205 +20,185 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#define MAX_EVENTS_PER_GROUP	32
+extern FILE * bta_log;
+extern FILE * memaccess_log;
 
 /*
- * --------------------- OP DERIVED FUNCTION
+ * --------------------- FETCH DERIVED FUNCTION
  */
-void trans_ibs_fetch (struct transient * trans, unsigned int selected_flag, unsigned int size)
+void trans_ibs_fetch (struct transient * trans, unsigned int selected_flag)
 {
 	struct ibs_fetch_sample * trans_fetch = ((struct ibs_sample*)(trans->ext))->fetch;
-	unsigned int i, j, mask = 1;
 
-	for (i = IBS_FETCH_BASE, j =0 ; i <= IBS_FETCH_END && j < size ; i++, mask = mask << 1) {
+	if ((selected_flag) == 0)
+		return;
 
-		if ((selected_flag & mask) == 0)
-			continue;
+	CHECK_FETCH_SELECTED_FLAG(DE_IBS_FETCH_ALL) {
+		/* IBS all fetch samples (kills + attempts) */
+		AGG_IBS_EVENT(DE_IBS_FETCH_ALL);
+	}		
 
-		j++;
+	CHECK_FETCH_SELECTED_FLAG(DE_IBS_FETCH_KILLED) {
+		/* IBS killed fetches ("case 0") -- All interesting event
+		 * flags are clear */
+		if (IBS_FETCH_KILLED(trans_fetch))
+			AGG_IBS_EVENT(DE_IBS_FETCH_KILLED);
+	}
 
-		switch (i) {
+	CHECK_FETCH_SELECTED_FLAG(DE_IBS_FETCH_ATTEMPTED) {
+		/* Any non-killed fetch is an attempted fetch */
+		AGG_IBS_EVENT(DE_IBS_FETCH_ATTEMPTED);
+	}
 
-		case DE_IBS_FETCH_ALL:
-			/* IBS all fetch samples (kills + attempts) */
-			AGG_IBS_EVENT(DE_IBS_FETCH_ALL);
-			break;
+	CHECK_FETCH_SELECTED_FLAG(DE_IBS_FETCH_COMPLETED) {
+		if (IBS_FETCH_FETCH_COMPLETION(trans_fetch))
+			/* IBS Fetch Completed */
+			AGG_IBS_EVENT(DE_IBS_FETCH_COMPLETED);
+	}
 
-		case DE_IBS_FETCH_KILLED:
-			/* IBS killed fetches ("case 0") -- All interesting event
-			 * flags are clear */
-			if (IBS_FETCH_KILLED(trans_fetch))
-				AGG_IBS_EVENT(DE_IBS_FETCH_KILLED);
-			break;
+	CHECK_FETCH_SELECTED_FLAG(DE_IBS_FETCH_ABORTED) {
+		if (!IBS_FETCH_FETCH_COMPLETION(trans_fetch))
+			/* IBS Fetch Aborted */
+			AGG_IBS_EVENT(DE_IBS_FETCH_ABORTED);
+	}
 
-		case DE_IBS_FETCH_ATTEMPTED:
-			/* Any non-killed fetch is an attempted fetch */
-			AGG_IBS_EVENT(DE_IBS_FETCH_ATTEMPTED);
-			break;
+	CHECK_FETCH_SELECTED_FLAG(DE_IBS_L1_ITLB_HIT) {
+		/* IBS L1 ITLB hit */
+		if (IBS_FETCH_L1_TLB_HIT(trans_fetch))
+			AGG_IBS_EVENT(DE_IBS_L1_ITLB_HIT);
+	}
 
-		case DE_IBS_FETCH_COMPLETED:
-			if (IBS_FETCH_FETCH_COMPLETION(trans_fetch))
-				/* IBS Fetch Completed */
-				AGG_IBS_EVENT(DE_IBS_FETCH_COMPLETED);
-			break;
+	CHECK_FETCH_SELECTED_FLAG(DE_IBS_ITLB_L1M_L2H) {
+		/* IBS L1 ITLB miss and L2 ITLB hit */
+		if (IBS_FETCH_ITLB_L1M_L2H(trans_fetch))
+			AGG_IBS_EVENT(DE_IBS_ITLB_L1M_L2H);
+	}
 
-		case DE_IBS_FETCH_ABORTED:
-			if (!IBS_FETCH_FETCH_COMPLETION(trans_fetch))
-				/* IBS Fetch Aborted */
-				AGG_IBS_EVENT(DE_IBS_FETCH_ABORTED);
-			break;
+	CHECK_FETCH_SELECTED_FLAG(DE_IBS_ITLB_L1M_L2M) {
+		/* IBS L1 & L2 ITLB miss; complete ITLB miss */
+		if (IBS_FETCH_ITLB_L1M_L2M(trans_fetch))
+			AGG_IBS_EVENT(DE_IBS_ITLB_L1M_L2M);
+	}
 
-		case DE_IBS_L1_ITLB_HIT:
-			/* IBS L1 ITLB hit */
-			if (IBS_FETCH_L1_TLB_HIT(trans_fetch))
-				AGG_IBS_EVENT(DE_IBS_L1_ITLB_HIT);
-			break;
+	CHECK_FETCH_SELECTED_FLAG(DE_IBS_IC_MISS) {
+		/* IBS instruction cache miss */
+		if (IBS_FETCH_INST_CACHE_MISS(trans_fetch))
+			AGG_IBS_EVENT(DE_IBS_IC_MISS);
+	}
 
-		case DE_IBS_ITLB_L1M_L2H:
-			/* IBS L1 ITLB miss and L2 ITLB hit */
-			if (IBS_FETCH_ITLB_L1M_L2H(trans_fetch))
-				AGG_IBS_EVENT(DE_IBS_ITLB_L1M_L2H);
-			break;
+	CHECK_FETCH_SELECTED_FLAG(DE_IBS_IC_HIT) {
+		/* IBS instruction cache hit */
+		if (IBS_FETCH_INST_CACHE_HIT(trans_fetch))
+			AGG_IBS_EVENT(DE_IBS_IC_HIT);
+	}
 
-		case DE_IBS_ITLB_L1M_L2M:
-			/* IBS L1 & L2 ITLB miss; complete ITLB miss */
-			if (IBS_FETCH_ITLB_L1M_L2M(trans_fetch))
-				AGG_IBS_EVENT(DE_IBS_ITLB_L1M_L2M);
-			break;
+	CHECK_FETCH_SELECTED_FLAG(DE_IBS_FETCH_4K_PAGE) {
+		if (IBS_FETCH_PHYS_ADDR_VALID(trans_fetch)
+		    && IBS_FETCH_TLB_PAGE_SIZE_4K(trans_fetch))
+			AGG_IBS_EVENT(DE_IBS_FETCH_4K_PAGE);
+	}
 
-		case DE_IBS_IC_MISS:
-			/* IBS instruction cache miss */
-			if (IBS_FETCH_INST_CACHE_MISS(trans_fetch))
-				AGG_IBS_EVENT(DE_IBS_IC_MISS);
-			break;
+	CHECK_FETCH_SELECTED_FLAG(DE_IBS_FETCH_2M_PAGE) {
+		if (IBS_FETCH_PHYS_ADDR_VALID(trans_fetch)
+		    && IBS_FETCH_TLB_PAGE_SIZE_2M(trans_fetch))
+			AGG_IBS_EVENT(DE_IBS_FETCH_2M_PAGE);
+	}
 
-		case DE_IBS_IC_HIT:
-			/* IBS instruction cache hit */
-			if (IBS_FETCH_INST_CACHE_HIT(trans_fetch))
-				AGG_IBS_EVENT(DE_IBS_IC_HIT);
-			break;
+	CHECK_FETCH_SELECTED_FLAG(DE_IBS_FETCH_1G_PAGE) {
+		if (IBS_FETCH_PHYS_ADDR_VALID(trans_fetch)
+		    && IBS_FETCH_TLB_PAGE_SIZE_1G(trans_fetch))
+			AGG_IBS_EVENT(DE_IBS_FETCH_1G_PAGE);
+	}
 
-		case DE_IBS_FETCH_4K_PAGE:
-			if (IBS_FETCH_PHYS_ADDR_VALID(trans_fetch)
-			    && IBS_FETCH_TLB_PAGE_SIZE(trans_fetch) ==  L1TLB4K)
-				AGG_IBS_EVENT(DE_IBS_FETCH_4K_PAGE);
-			break;
+	CHECK_FETCH_SELECTED_FLAG(DE_IBS_FETCH_XX_PAGE) {
+	}
 
-		case DE_IBS_FETCH_2M_PAGE:
-			if (IBS_FETCH_PHYS_ADDR_VALID(trans_fetch)
-			    && IBS_FETCH_TLB_PAGE_SIZE(trans_fetch) ==  L1TLB2M)
-				AGG_IBS_EVENT(DE_IBS_FETCH_2M_PAGE);
-			break;
-
-		case DE_IBS_FETCH_1G_PAGE:
-			if (IBS_FETCH_PHYS_ADDR_VALID(trans_fetch)
-			    && IBS_FETCH_TLB_PAGE_SIZE(trans_fetch) ==  L1TLB1G)
-				AGG_IBS_EVENT(DE_IBS_FETCH_1G_PAGE);
-			break;
-
-		case DE_IBS_FETCH_XX_PAGE:
-			break;
-
-		case DE_IBS_FETCH_LATENCY:
-			if (IBS_FETCH_FETCH_LATENCY(trans_fetch))
-				AGG_IBS_COUNT(DE_IBS_FETCH_LATENCY,
-					      IBS_FETCH_FETCH_LATENCY(trans_fetch));
-			break;
-		default:
-			break;
-		}
+	CHECK_FETCH_SELECTED_FLAG(DE_IBS_FETCH_LATENCY) {
+		if (IBS_FETCH_FETCH_LATENCY(trans_fetch))
+			AGG_IBS_COUNT(DE_IBS_FETCH_LATENCY,
+				      IBS_FETCH_FETCH_LATENCY(trans_fetch));
 	}
 }
 
+
 /*
  * --------------------- OP DERIVED FUNCTION
  */
-void trans_ibs_op (struct transient * trans, unsigned int selected_flag, unsigned int size)
+void trans_ibs_op (struct transient * trans, unsigned int selected_flag)
 {
 	struct ibs_op_sample * trans_op = ((struct ibs_sample*)(trans->ext))->op;
-	unsigned int i, j, mask = 1;
 
-	for (i = IBS_OP_BASE, j =0 ; i <= IBS_OP_END && j < size ; i++, mask = mask << 1) {
+	if ((selected_flag) == 0)
+		return;
 
-		if ((selected_flag & mask) == 0)
-			continue;
+	CHECK_OP_SELECTED_FLAG(DE_IBS_OP_ALL) {
+		/* All IBS op samples */
+		AGG_IBS_EVENT(DE_IBS_OP_ALL);
+	}
 
-		j++;
+	CHECK_OP_SELECTED_FLAG(DE_IBS_OP_TAG_TO_RETIRE) {
+		/* Tally retire cycle counts for all sampled macro-ops
+		 * IBS tag to retire cycles */
+		if (IBS_OP_TAG_TO_RETIRE_CYCLES(trans_op))
+			AGG_IBS_COUNT(DE_IBS_OP_TAG_TO_RETIRE,
+				IBS_OP_TAG_TO_RETIRE_CYCLES(trans_op));
+	}
 
-		switch (i) {
+	CHECK_OP_SELECTED_FLAG(DE_IBS_OP_COMP_TO_RETIRE) {
+		/* IBS completion to retire cycles */
+		if (IBS_OP_COM_TO_RETIRE_CYCLES(trans_op))
+			AGG_IBS_COUNT(DE_IBS_OP_COMP_TO_RETIRE,
+				IBS_OP_COM_TO_RETIRE_CYCLES(trans_op));
+	}
 
-		case DE_IBS_OP_ALL:
-			/* All IBS op samples */
-			AGG_IBS_EVENT(DE_IBS_OP_ALL);
-			break;
+	CHECK_OP_SELECTED_FLAG(DE_IBS_BRANCH_RETIRED) {
+		if (IBS_OP_BRANCH_RETIRED(trans_op))
+			/* IBS Branch retired op */
+			AGG_IBS_EVENT(DE_IBS_BRANCH_RETIRED) ;
+	}
 
-		case DE_IBS_OP_TAG_TO_RETIRE:
-			/* Tally retire cycle counts for all sampled macro-ops
-			 * IBS tag to retire cycles */
-			if (IBS_OP_TAG_TO_RETIRE_CYCLES(trans_op))
-				AGG_IBS_COUNT(DE_IBS_OP_TAG_TO_RETIRE,
-					IBS_OP_TAG_TO_RETIRE_CYCLES(trans_op));
-			break;
+	CHECK_OP_SELECTED_FLAG(DE_IBS_BRANCH_MISP) {
+		if (IBS_OP_BRANCH_RETIRED(trans_op)
+		    /* Test branch-specific event flags */
+		    /* IBS mispredicted Branch op */
+		    && IBS_OP_BRANCH_MISPREDICT(trans_op))
+			AGG_IBS_EVENT(DE_IBS_BRANCH_MISP) ;
+	}
 
-		case DE_IBS_OP_COMP_TO_RETIRE:
-			/* IBS completion to retire cycles */
-			if (IBS_OP_COM_TO_RETIRE_CYCLES(trans_op))
-				AGG_IBS_COUNT(DE_IBS_OP_COMP_TO_RETIRE,
-					IBS_OP_COM_TO_RETIRE_CYCLES(trans_op));
-			break;
+	CHECK_OP_SELECTED_FLAG(DE_IBS_BRANCH_TAKEN) {
+		if (IBS_OP_BRANCH_RETIRED(trans_op)
+		    /* IBS taken Branch op */
+		    && IBS_OP_BRANCH_TAKEN(trans_op))
+			AGG_IBS_EVENT(DE_IBS_BRANCH_TAKEN);
+	}
 
-		case DE_IBS_BRANCH_RETIRED:
-			if (IBS_OP_OP_BRANCH_RETIRED(trans_op))
-				/* IBS Branch retired op */
-				AGG_IBS_EVENT(DE_IBS_BRANCH_RETIRED) ;
-			break;
+	CHECK_OP_SELECTED_FLAG(DE_IBS_BRANCH_MISP_TAKEN) {
+		if (IBS_OP_BRANCH_RETIRED(trans_op)
+		    /* IBS mispredicted taken branch op */
+		    && IBS_OP_BRANCH_TAKEN(trans_op)
+		    && IBS_OP_BRANCH_MISPREDICT(trans_op))
+			AGG_IBS_EVENT(DE_IBS_BRANCH_MISP_TAKEN);
+	}
 
-		case DE_IBS_BRANCH_MISP:
-			if (IBS_OP_OP_BRANCH_RETIRED(trans_op)
-			    /* Test branch-specific event flags */
-			    /* IBS mispredicted Branch op */
-			    && IBS_OP_OP_BRANCH_MISPREDICT(trans_op))
-				AGG_IBS_EVENT(DE_IBS_BRANCH_MISP) ;
-			break;
+	CHECK_OP_SELECTED_FLAG(DE_IBS_RETURN) {
+		if (IBS_OP_BRANCH_RETIRED(trans_op)
+		    /* IBS return op */
+		    && IBS_OP_RETURN(trans_op))
+			AGG_IBS_EVENT(DE_IBS_RETURN);
+	}
 
-		case DE_IBS_BRANCH_TAKEN:
-			if (IBS_OP_OP_BRANCH_RETIRED(trans_op)
-			    /* IBS taken Branch op */
-			    && IBS_OP_OP_BRANCH_TAKEN(trans_op))
-				AGG_IBS_EVENT(DE_IBS_BRANCH_TAKEN);
-			break;
+	CHECK_OP_SELECTED_FLAG(DE_IBS_RETURN_MISP) {
+		if (IBS_OP_BRANCH_RETIRED(trans_op)
+		    /* IBS mispredicted return op */
+		    && IBS_OP_RETURN(trans_op)
+		    && IBS_OP_BRANCH_MISPREDICT(trans_op))
+			AGG_IBS_EVENT(DE_IBS_RETURN_MISP);
+	}
 
-		case DE_IBS_BRANCH_MISP_TAKEN:
-			if (IBS_OP_OP_BRANCH_RETIRED(trans_op)
-			    /* IBS mispredicted taken branch op */
-			    && IBS_OP_OP_BRANCH_TAKEN(trans_op)
-			    && IBS_OP_OP_BRANCH_MISPREDICT(trans_op))
-				AGG_IBS_EVENT(DE_IBS_BRANCH_MISP_TAKEN);
-			break;
-
-		case DE_IBS_RETURN:
-			if (IBS_OP_OP_BRANCH_RETIRED(trans_op)
-			    /* IBS return op */
-			    && IBS_OP_OP_RETURN(trans_op))
-				AGG_IBS_EVENT(DE_IBS_RETURN);
-			break;
-
-		case DE_IBS_RETURN_MISP:
-			if (IBS_OP_OP_BRANCH_RETIRED(trans_op)
-			    /* IBS mispredicted return op */
-			    && IBS_OP_OP_RETURN(trans_op)
-			    && IBS_OP_OP_BRANCH_MISPREDICT(trans_op))
-				AGG_IBS_EVENT(DE_IBS_RETURN_MISP);
-			break;
-
-		case DE_IBS_RESYNC:
-			/* Test for a resync macro-op */
-			if (IBS_OP_OP_BRANCH_RESYNC(trans_op))
-				AGG_IBS_EVENT(DE_IBS_RESYNC);
-			break;
-		default:
-			break;
-		}
+	CHECK_OP_SELECTED_FLAG(DE_IBS_RESYNC) {
+		/* Test for a resync macro-op */
+		if (IBS_OP_BRANCH_RESYNC(trans_op))
+			AGG_IBS_EVENT(DE_IBS_RESYNC);
 	}
 }
 
@@ -226,213 +206,201 @@ void trans_ibs_op (struct transient * trans, unsigned int selected_flag, unsigne
 /*
  * --------------------- OP LS DERIVED FUNCTION
  */
-void trans_ibs_op_ls (struct transient * trans, unsigned int selected_flag, unsigned int size)
+void trans_ibs_op_ls (struct transient * trans, unsigned int selected_flag)
 {
 	struct ibs_op_sample * trans_op = ((struct ibs_sample*)(trans->ext))->op;
-	unsigned int i, j, mask = 1;
 
 	/* Preliminary check */
 	if (!IBS_OP_IBS_LD_OP(trans_op) && !IBS_OP_IBS_ST_OP(trans_op))
 		return;
 
 
-	for (i = IBS_OP_LS_BASE, j =0 ; i <= IBS_OP_LS_END && j < size ; i++, mask = mask << 1) {
+	if ((selected_flag) == 0)
+		return;
 
-		if ((selected_flag & mask) == 0)
-			continue;
+	CHECK_OP_LS_SELECTED_FLAG(DE_IBS_LS_ALL_OP) {
+		/* Count the number of LS op samples */
+		AGG_IBS_EVENT(DE_IBS_LS_ALL_OP) ;
+	}
 
-		j++;
+	CHECK_OP_LS_SELECTED_FLAG(DE_IBS_LS_LOAD_OP) {
+		if (IBS_OP_IBS_LD_OP(trans_op))
+			/* TALLy an IBS load derived event */
+			AGG_IBS_EVENT(DE_IBS_LS_LOAD_OP) ;
+	}
 
-		switch (i) {
+	CHECK_OP_LS_SELECTED_FLAG(DE_IBS_LS_STORE_OP) {
+		if (IBS_OP_IBS_ST_OP(trans_op))
+			/* Count and handle store operations */
+			AGG_IBS_EVENT(DE_IBS_LS_STORE_OP);
+	}
 
-		case DE_IBS_LS_ALL_OP:
-			/* Count the number of LS op samples */
-			AGG_IBS_EVENT(DE_IBS_LS_ALL_OP) ;
-			break;
+	CHECK_OP_LS_SELECTED_FLAG(DE_IBS_LS_DTLB_L1H) {
+		if (IBS_OP_IBS_DC_LIN_ADDR_VALID(trans_op)
+		    && !IBS_OP_IBS_DC_L1_TLB_MISS(trans_op))
+			/* L1 DTLB hit -- This is the most frequent case */
+			AGG_IBS_EVENT(DE_IBS_LS_DTLB_L1H);
+	}
 
-		case DE_IBS_LS_LOAD_OP:
-			if (IBS_OP_IBS_LD_OP(trans_op))
-				/* TALLy an IBS load derived event */
-				AGG_IBS_EVENT(DE_IBS_LS_LOAD_OP) ;
-			break;
+	CHECK_OP_LS_SELECTED_FLAG(DE_IBS_LS_DTLB_L1M_L2H) {
+		/* l2_translation_size = 1 */
+		if (IBS_OP_IBS_DC_LIN_ADDR_VALID(trans_op)
+		    && IBS_OP_IBS_DC_L1_TLB_MISS(trans_op)
+		    && !IBS_OP_IBS_DC_L2_TLB_MISS(trans_op))
+			/* L1 DTLB miss, L2 DTLB hit */
+			AGG_IBS_EVENT(DE_IBS_LS_DTLB_L1M_L2H);
+	}
 
-		case DE_IBS_LS_STORE_OP:
-			if (IBS_OP_IBS_ST_OP(trans_op))
-				/* Count and handle store operations */
-				AGG_IBS_EVENT(DE_IBS_LS_STORE_OP);
-			break;
+	CHECK_OP_LS_SELECTED_FLAG(DE_IBS_LS_DTLB_L1M_L2M) {
+		if (IBS_OP_IBS_DC_LIN_ADDR_VALID(trans_op)
+		    && IBS_OP_IBS_DC_L1_TLB_MISS(trans_op)
+		    && IBS_OP_IBS_DC_L2_TLB_MISS(trans_op))
+			/* L1 DTLB miss, L2 DTLB miss */
+			AGG_IBS_EVENT(DE_IBS_LS_DTLB_L1M_L2M);
+	}
 
-		case DE_IBS_LS_DTLB_L1H:
-			if (IBS_OP_IBS_DC_LIN_ADDR_VALID(trans_op)
-			    && !IBS_OP_IBS_DC_L1_TLB_MISS(trans_op))
-				/* L1 DTLB hit -- This is the most frequent case */
-				AGG_IBS_EVENT(DE_IBS_LS_DTLB_L1H);
-			break;
+	CHECK_OP_LS_SELECTED_FLAG(DE_IBS_LS_DC_MISS) {
+		if (IBS_OP_IBS_DC_MISS(trans_op))
+			AGG_IBS_EVENT(DE_IBS_LS_DC_MISS);
+	}
 
-		case DE_IBS_LS_DTLB_L1M_L2H:
-			/* l2_translation_size = 1 */
-			if (IBS_OP_IBS_DC_LIN_ADDR_VALID(trans_op)
-			    && IBS_OP_IBS_DC_L1_TLB_MISS(trans_op)
-			    && !IBS_OP_IBS_DC_L2_TLB_MISS(trans_op))
-				/* L1 DTLB miss, L2 DTLB hit */
-				AGG_IBS_EVENT(DE_IBS_LS_DTLB_L1M_L2H);
-			break;
+	CHECK_OP_LS_SELECTED_FLAG(DE_IBS_LS_DC_HIT) {
+		if (!IBS_OP_IBS_DC_MISS(trans_op))
+			AGG_IBS_EVENT(DE_IBS_LS_DC_HIT);
+	}
 
-		case DE_IBS_LS_DTLB_L1M_L2M:
-			if (IBS_OP_IBS_DC_LIN_ADDR_VALID(trans_op)
-			    && IBS_OP_IBS_DC_L1_TLB_MISS(trans_op)
-			    && IBS_OP_IBS_DC_L2_TLB_MISS(trans_op))
-				/* L1 DTLB miss, L2 DTLB miss */
-				AGG_IBS_EVENT(DE_IBS_LS_DTLB_L1M_L2M);
-			break;
+	CHECK_OP_LS_SELECTED_FLAG(DE_IBS_LS_MISALIGNED) {
+		if (IBS_OP_IBS_DC_MISS_ACC(trans_op))
+			AGG_IBS_EVENT(DE_IBS_LS_MISALIGNED);
+	}
 
-		case DE_IBS_LS_DC_MISS:
-			if (IBS_OP_IBS_DC_MISS(trans_op))
-				AGG_IBS_EVENT(DE_IBS_LS_DC_MISS);
-			break;
+	CHECK_OP_LS_SELECTED_FLAG(DE_IBS_LS_BNK_CONF_LOAD) {
+		if (IBS_OP_IBS_DC_LD_BNK_CON(trans_op))
+			AGG_IBS_EVENT(DE_IBS_LS_BNK_CONF_LOAD);
+	}
 
-		case DE_IBS_LS_DC_HIT:
-			if (!IBS_OP_IBS_DC_MISS(trans_op))
-				AGG_IBS_EVENT(DE_IBS_LS_DC_HIT);
-			break;
+	CHECK_OP_LS_SELECTED_FLAG(DE_IBS_LS_BNK_CONF_STORE) {
+		if (IBS_OP_IBS_DC_ST_BNK_CON(trans_op))
+			AGG_IBS_EVENT(DE_IBS_LS_BNK_CONF_STORE);
+	}
 
-		case DE_IBS_LS_MISALIGNED:
-			if (IBS_OP_IBS_DC_MISS_ACC(trans_op))
-				AGG_IBS_EVENT(DE_IBS_LS_MISALIGNED);
-			break;
+	CHECK_OP_LS_SELECTED_FLAG(DE_IBS_LS_STL_FORWARDED) {
+		if (IBS_OP_IBS_LD_OP(trans_op)
+		    /* Data forwarding info are valid only for load ops */
+		    && IBS_OP_IBS_DC_ST_TO_LD_FWD(trans_op))
+			AGG_IBS_EVENT(DE_IBS_LS_STL_FORWARDED) ;
+	}
 
-		case DE_IBS_LS_BNK_CONF_LOAD:
-			if (IBS_OP_IBS_DC_LD_BNK_CON(trans_op))
-				AGG_IBS_EVENT(DE_IBS_LS_BNK_CONF_LOAD);
-			break;
+	CHECK_OP_LS_SELECTED_FLAG(DE_IBS_LS_STL_CANCELLED) {
+		if (IBS_OP_IBS_LD_OP(trans_op))
+		if (IBS_OP_IBS_DC_ST_TO_LD_CAN(trans_op))
+			AGG_IBS_EVENT(DE_IBS_LS_STL_CANCELLED) ;
+	}
 
-		case DE_IBS_LS_BNK_CONF_STORE:
-			if (IBS_OP_IBS_DC_ST_BNK_CON(trans_op))
-				AGG_IBS_EVENT(DE_IBS_LS_BNK_CONF_STORE);
-			break;
+	CHECK_OP_LS_SELECTED_FLAG(DE_IBS_LS_UC_MEM_ACCESS) {
+		if (IBS_OP_IBS_DC_UC_MEM_ACC(trans_op))
+			AGG_IBS_EVENT(DE_IBS_LS_UC_MEM_ACCESS);
+	}
 
-		case DE_IBS_LS_STL_FORWARDED:
-			if (IBS_OP_IBS_LD_OP(trans_op)
-			    /* Data forwarding info are valid only for load ops */
-			    && IBS_OP_IBS_DC_ST_TO_LD_FWD(trans_op))
-				AGG_IBS_EVENT(DE_IBS_LS_STL_FORWARDED) ;
-			break;
+	CHECK_OP_LS_SELECTED_FLAG(DE_IBS_LS_WC_MEM_ACCESS) {
+		if (IBS_OP_IBS_DC_WC_MEM_ACC(trans_op))
+			AGG_IBS_EVENT(DE_IBS_LS_WC_MEM_ACCESS);
+	}
 
-		case DE_IBS_LS_STL_CANCELLED:
-			if (IBS_OP_IBS_LD_OP(trans_op))
-			if (IBS_OP_IBS_DC_ST_TO_LD_CAN(trans_op))
-				AGG_IBS_EVENT(DE_IBS_LS_STL_CANCELLED) ;
-			break;
+	CHECK_OP_LS_SELECTED_FLAG(DE_IBS_LS_LOCKED_OP) {
+		if (IBS_OP_IBS_LOCKED_OP(trans_op))
+			AGG_IBS_EVENT(DE_IBS_LS_LOCKED_OP);
+	}
 
-		case DE_IBS_LS_UC_MEM_ACCESS:
-			if (IBS_OP_IBS_DC_UC_MEM_ACC(trans_op))
-				AGG_IBS_EVENT(DE_IBS_LS_UC_MEM_ACCESS);
-			break;
+	CHECK_OP_LS_SELECTED_FLAG(DE_IBS_LS_MAB_HIT) {
+		if (IBS_OP_IBS_DC_MAB_HIT(trans_op))
+			AGG_IBS_EVENT(DE_IBS_LS_MAB_HIT);
+	}
 
-		case DE_IBS_LS_WC_MEM_ACCESS:
-			if (IBS_OP_IBS_DC_WC_MEM_ACC(trans_op))
-				AGG_IBS_EVENT(DE_IBS_LS_WC_MEM_ACCESS);
-			break;
+	CHECK_OP_LS_SELECTED_FLAG(DE_IBS_LS_L1_DTLB_4K) {
+		/* l1_translation */
+		if (IBS_OP_IBS_DC_LIN_ADDR_VALID(trans_op)
+		    && !IBS_OP_IBS_DC_L1_TLB_MISS(trans_op)
 
-		case DE_IBS_LS_LOCKED_OP:
-			if (IBS_OP_IBS_LOCKED_OP(trans_op))
-				AGG_IBS_EVENT(DE_IBS_LS_LOCKED_OP);
-			break;
+		    && !IBS_OP_IBS_DC_L1_TLB_HIT_2MB(trans_op)
+		    && !IBS_OP_IBS_DC_L1_TLB_HIT_1GB(trans_op))
+			/* This is the most common case, unfortunately */
+			AGG_IBS_EVENT(DE_IBS_LS_L1_DTLB_4K) ;
+	}
 
-		case DE_IBS_LS_MAB_HIT:
-			if (IBS_OP_IBS_DC_MAB_HIT(trans_op))
-				AGG_IBS_EVENT(DE_IBS_LS_MAB_HIT);
-			break;
+	CHECK_OP_LS_SELECTED_FLAG(DE_IBS_LS_L1_DTLB_2M) {
+		/* l1_translation */
+		if (IBS_OP_IBS_DC_LIN_ADDR_VALID(trans_op)
+		    && !IBS_OP_IBS_DC_L1_TLB_MISS(trans_op)
 
-		case DE_IBS_LS_L1_DTLB_4K:
-			/* l1_translation */
-			if (IBS_OP_IBS_DC_LIN_ADDR_VALID(trans_op)
-			    && !IBS_OP_IBS_DC_L1_TLB_MISS(trans_op)
+		    && IBS_OP_IBS_DC_L1_TLB_HIT_2MB(trans_op))
+			/* 2M L1 DTLB page translation */
+			AGG_IBS_EVENT(DE_IBS_LS_L1_DTLB_2M);
+	}
 
-			    && !IBS_OP_IBS_DC_L1_TLB_HIT_2MB(trans_op)
-			    && !IBS_OP_IBS_DC_L1_TLB_HIT_1GB(trans_op))
-				/* This is the most common case, unfortunately */
-				AGG_IBS_EVENT(DE_IBS_LS_L1_DTLB_4K) ;
-			break;
+	CHECK_OP_LS_SELECTED_FLAG(DE_IBS_LS_L1_DTLB_1G) {
+		/* l1_translation */
+		if (IBS_OP_IBS_DC_LIN_ADDR_VALID(trans_op)
+		    && !IBS_OP_IBS_DC_L1_TLB_MISS(trans_op)
 
-		case DE_IBS_LS_L1_DTLB_2M:
-			/* l1_translation */
-			if (IBS_OP_IBS_DC_LIN_ADDR_VALID(trans_op)
-			    && !IBS_OP_IBS_DC_L1_TLB_MISS(trans_op)
+		    && !IBS_OP_IBS_DC_L1_TLB_HIT_2MB(trans_op)
+		    && IBS_OP_IBS_DC_L1_TLB_HIT_1GB(trans_op))
+			/* 1G L1 DTLB page translation */
+			AGG_IBS_EVENT(DE_IBS_LS_L1_DTLB_1G);
+	}
 
-			    && IBS_OP_IBS_DC_L1_TLB_HIT_2MB(trans_op))
-				/* 2M L1 DTLB page translation */
-				AGG_IBS_EVENT(DE_IBS_LS_L1_DTLB_2M);
-			break;
+	CHECK_OP_LS_SELECTED_FLAG(DE_IBS_LS_L1_DTLB_RES) {
+	}
 
-		case DE_IBS_LS_L1_DTLB_1G:
-			/* l1_translation */
-			if (IBS_OP_IBS_DC_LIN_ADDR_VALID(trans_op)
-			    && !IBS_OP_IBS_DC_L1_TLB_MISS(trans_op)
+	CHECK_OP_LS_SELECTED_FLAG(DE_IBS_LS_L2_DTLB_4K) {
+		/* l2_translation_size = 1 */
+		if (IBS_OP_IBS_DC_LIN_ADDR_VALID(trans_op)
+		    && IBS_OP_IBS_DC_L1_TLB_MISS(trans_op)
+		    && !IBS_OP_IBS_DC_L2_TLB_MISS(trans_op)
 
-			    && !IBS_OP_IBS_DC_L1_TLB_HIT_2MB(trans_op)
-			    && IBS_OP_IBS_DC_L1_TLB_HIT_1GB(trans_op))
-				/* 1G L1 DTLB page translation */
-				AGG_IBS_EVENT(DE_IBS_LS_L1_DTLB_1G);
-			break;
+		    /* L2 DTLB page translation */
+		    && !IBS_OP_IBS_DC_L2_TLB_HIT_2MB(trans_op)
+		    && !IBS_OP_IBS_DC_L2_TLB_HIT_1GB(trans_op))
+			/* 4K L2 DTLB page translation */
+			AGG_IBS_EVENT(DE_IBS_LS_L2_DTLB_4K);
+	}
 
-		case DE_IBS_LS_L1_DTLB_RES:
-			break;
+	CHECK_OP_LS_SELECTED_FLAG(DE_IBS_LS_L2_DTLB_2M) {
+		/* l2_translation_size = 1 */
+		if (IBS_OP_IBS_DC_LIN_ADDR_VALID(trans_op)
+		    && IBS_OP_IBS_DC_L1_TLB_MISS(trans_op)
+		    && !IBS_OP_IBS_DC_L2_TLB_MISS(trans_op)
 
-		case DE_IBS_LS_L2_DTLB_4K:
-			/* l2_translation_size = 1 */
-			if (IBS_OP_IBS_DC_LIN_ADDR_VALID(trans_op)
-			    && IBS_OP_IBS_DC_L1_TLB_MISS(trans_op)
-			    && !IBS_OP_IBS_DC_L2_TLB_MISS(trans_op)
+		    /* L2 DTLB page translation */
+		    && IBS_OP_IBS_DC_L2_TLB_HIT_2MB(trans_op)
+		    && !IBS_OP_IBS_DC_L2_TLB_HIT_1GB(trans_op))
+			/* 2M L2 DTLB page translation */
+			AGG_IBS_EVENT(DE_IBS_LS_L2_DTLB_2M);
+	}
 
-			    /* L2 DTLB page translation */
-			    && !IBS_OP_IBS_DC_L2_TLB_HIT_2MB(trans_op)
-			    && !IBS_OP_IBS_DC_L2_TLB_HIT_1GB(trans_op))
-				/* 4K L2 DTLB page translation */
-				AGG_IBS_EVENT(DE_IBS_LS_L2_DTLB_4K);
-			break;
+	CHECK_OP_LS_SELECTED_FLAG(DE_IBS_LS_L2_DTLB_1G) {
+		/* l2_translation_size = 1 */
+		if (IBS_OP_IBS_DC_LIN_ADDR_VALID(trans_op)
+		    && IBS_OP_IBS_DC_L1_TLB_MISS(trans_op)
+		    && !IBS_OP_IBS_DC_L2_TLB_MISS(trans_op)
 
-		case DE_IBS_LS_L2_DTLB_2M:
-			/* l2_translation_size = 1 */
-			if (IBS_OP_IBS_DC_LIN_ADDR_VALID(trans_op)
-			    && IBS_OP_IBS_DC_L1_TLB_MISS(trans_op)
-			    && !IBS_OP_IBS_DC_L2_TLB_MISS(trans_op)
+		    /* L2 DTLB page translation */
+		    && !IBS_OP_IBS_DC_L2_TLB_HIT_2MB(trans_op)
+		    && IBS_OP_IBS_DC_L2_TLB_HIT_1GB(trans_op))
+			/* 2M L2 DTLB page translation */
+			AGG_IBS_EVENT(DE_IBS_LS_L2_DTLB_1G);
+	}
 
-			    /* L2 DTLB page translation */
-			    && IBS_OP_IBS_DC_L2_TLB_HIT_2MB(trans_op)
-			    && !IBS_OP_IBS_DC_L2_TLB_HIT_1GB(trans_op))
-				/* 2M L2 DTLB page translation */
-				AGG_IBS_EVENT(DE_IBS_LS_L2_DTLB_2M);
-			break;
+	CHECK_OP_LS_SELECTED_FLAG(DE_IBS_LS_L2_DTLB_RES2) {
+	}
 
-		case DE_IBS_LS_L2_DTLB_1G:
-			/* l2_translation_size = 1 */
-			if (IBS_OP_IBS_DC_LIN_ADDR_VALID(trans_op)
-			    && IBS_OP_IBS_DC_L1_TLB_MISS(trans_op)
-			    && !IBS_OP_IBS_DC_L2_TLB_MISS(trans_op)
-
-			    /* L2 DTLB page translation */
-			    && !IBS_OP_IBS_DC_L2_TLB_HIT_2MB(trans_op)
-			    && IBS_OP_IBS_DC_L2_TLB_HIT_1GB(trans_op))
-				/* 2M L2 DTLB page translation */
-				AGG_IBS_EVENT(DE_IBS_LS_L2_DTLB_1G);
-			break;
-
-		case DE_IBS_LS_L2_DTLB_RES2:
-			break;
-
-		case DE_IBS_LS_DC_LOAD_LAT:
-			if (IBS_OP_IBS_LD_OP(trans_op)
-			    /* If the load missed in DC, tally the DC load miss latency */
-			    && IBS_OP_IBS_DC_MISS(trans_op))
-				/* DC load miss latency is only reliable for load ops */
-				AGG_IBS_COUNT(DE_IBS_LS_DC_LOAD_LAT,
-					      IBS_OP_DC_MISS_LATENCY(trans_op)) ;
-			break;
-
-		default:
-			break;
-		}
+	CHECK_OP_LS_SELECTED_FLAG(DE_IBS_LS_DC_LOAD_LAT) {
+		if (IBS_OP_IBS_LD_OP(trans_op)
+		    /* If the load missed in DC, tally the DC load miss latency */
+		    && IBS_OP_IBS_DC_MISS(trans_op))
+			/* DC load miss latency is only reliable for load ops */
+			AGG_IBS_COUNT(DE_IBS_LS_DC_LOAD_LAT,
+				      IBS_OP_DC_MISS_LATENCY(trans_op)) ;
 	}
 }
 
@@ -443,12 +411,14 @@ void trans_ibs_op_ls (struct transient * trans, unsigned int selected_flag, unsi
  * that miss in L1 and L2 cache. NB data arrives too late
  * to be reliable for store operations
  */
-void trans_ibs_op_nb (struct transient * trans, unsigned int selected_flag, unsigned int size)
+void trans_ibs_op_nb (struct transient * trans, unsigned int selected_flag)
 {
 	struct ibs_op_sample * trans_op = ((struct ibs_sample*)(trans->ext))->op;
-	unsigned int i, j, mask = 1;
 
 	/* Preliminary check */
+	if ((selected_flag) == 0)
+		return;
+
 	if (!IBS_OP_IBS_LD_OP(trans_op))
 		return;
 
@@ -458,97 +428,219 @@ void trans_ibs_op_nb (struct transient * trans, unsigned int selected_flag, unsi
 	if (IBS_OP_NB_IBS_REQ_SRC(trans_op) == 0)
 		return;
 
-	for (i = IBS_OP_NB_BASE, j =0 ; i <= IBS_OP_NB_END && j < size ; i++, mask = mask << 1) {
+	CHECK_OP_NB_SELECTED_FLAG(DE_IBS_NB_LOCAL) {
+		if (!IBS_OP_NB_IBS_REQ_DST_PROC(trans_op))
+			/* Request was serviced by local processor */
+			AGG_IBS_EVENT(DE_IBS_NB_LOCAL) ;
+	}
 
-		if ((selected_flag & mask) == 0)
-			continue;
+	CHECK_OP_NB_SELECTED_FLAG(DE_IBS_NB_REMOTE) {
+		if (IBS_OP_NB_IBS_REQ_DST_PROC(trans_op))
+			/* Request was serviced by remote processor */
+			AGG_IBS_EVENT(DE_IBS_NB_REMOTE) ;
+	}
 
-		j++;
+	CHECK_OP_NB_SELECTED_FLAG(DE_IBS_NB_LOCAL_L3) {
+		if (!IBS_OP_NB_IBS_REQ_DST_PROC(trans_op)
+		    &&  IBS_OP_NB_IBS_REQ_SRC_01(trans_op))
+			AGG_IBS_EVENT(DE_IBS_NB_LOCAL_L3);
+	}
 
-		switch (i) {
+	CHECK_OP_NB_SELECTED_FLAG(DE_IBS_NB_LOCAL_CACHE) {
+		if (!IBS_OP_NB_IBS_REQ_DST_PROC(trans_op)
+		    &&  IBS_OP_NB_IBS_REQ_SRC_02(trans_op))
+			AGG_IBS_EVENT(DE_IBS_NB_LOCAL_CACHE);
+	}
 
-		case DE_IBS_NB_LOCAL:
-			if (!IBS_OP_NB_IBS_REQ_DST_PROC(trans_op))
-				/* Request was serviced by local processor */
-				AGG_IBS_EVENT(DE_IBS_NB_LOCAL) ;
-			break;
+	CHECK_OP_NB_SELECTED_FLAG(DE_IBS_NB_REMOTE_CACHE) {
+		if (IBS_OP_NB_IBS_REQ_DST_PROC(trans_op)
+		    &&  IBS_OP_NB_IBS_REQ_SRC_02(trans_op))
+			AGG_IBS_EVENT(DE_IBS_NB_REMOTE_CACHE) ;
+	}
 
-		case DE_IBS_NB_REMOTE:
-			if (IBS_OP_NB_IBS_REQ_DST_PROC(trans_op))
-				/* Request was serviced by remote processor */
-				AGG_IBS_EVENT(DE_IBS_NB_REMOTE) ;
-			break;
+	CHECK_OP_NB_SELECTED_FLAG(DE_IBS_NB_LOCAL_DRAM) {
+		if (!IBS_OP_NB_IBS_REQ_DST_PROC(trans_op)
+		    &&  IBS_OP_NB_IBS_REQ_SRC_03(trans_op))
+			AGG_IBS_EVENT(DE_IBS_NB_LOCAL_DRAM);
+	}
 
-		case DE_IBS_NB_LOCAL_L3:
-			if (!IBS_OP_NB_IBS_REQ_DST_PROC(trans_op)
-			    && (IBS_OP_NB_IBS_REQ_SRC(trans_op) == 0x1))
-				AGG_IBS_EVENT(DE_IBS_NB_LOCAL_L3);
-			break;
+	CHECK_OP_NB_SELECTED_FLAG(DE_IBS_NB_REMOTE_DRAM) {
+		if (IBS_OP_NB_IBS_REQ_DST_PROC(trans_op)
+		    &&  IBS_OP_NB_IBS_REQ_SRC_03(trans_op))
+			AGG_IBS_EVENT(DE_IBS_NB_REMOTE_DRAM) ;
+	}
 
-		case DE_IBS_NB_LOCAL_CACHE:
-			if (!IBS_OP_NB_IBS_REQ_DST_PROC(trans_op)
-			    && (IBS_OP_NB_IBS_REQ_SRC(trans_op) == 0x2))
-				AGG_IBS_EVENT(DE_IBS_NB_LOCAL_CACHE);
-			break;
+	CHECK_OP_NB_SELECTED_FLAG(DE_IBS_NB_LOCAL_OTHER) {
+		if (!IBS_OP_NB_IBS_REQ_DST_PROC(trans_op)
+		    &&  IBS_OP_NB_IBS_REQ_SRC_07(trans_op))
+			AGG_IBS_EVENT(DE_IBS_NB_LOCAL_OTHER);
+	}
 
-		case DE_IBS_NB_REMOTE_CACHE:
-			if (IBS_OP_NB_IBS_REQ_DST_PROC(trans_op)
-			    && (IBS_OP_NB_IBS_REQ_SRC(trans_op) == 0x2))
-				AGG_IBS_EVENT(DE_IBS_NB_REMOTE_CACHE) ;
-			break;
+	CHECK_OP_NB_SELECTED_FLAG(DE_IBS_NB_REMOTE_OTHER) {
+		if (IBS_OP_NB_IBS_REQ_DST_PROC(trans_op)
+		    &&  IBS_OP_NB_IBS_REQ_SRC_07(trans_op))
+			AGG_IBS_EVENT(DE_IBS_NB_REMOTE_OTHER) ;
+	}
 
-		case DE_IBS_NB_LOCAL_DRAM:
-			if (!IBS_OP_NB_IBS_REQ_DST_PROC(trans_op)
-			    && (IBS_OP_NB_IBS_REQ_SRC(trans_op) == 0x3))
-				AGG_IBS_EVENT(DE_IBS_NB_LOCAL_DRAM);
-			break;
+	CHECK_OP_NB_SELECTED_FLAG(DE_IBS_NB_CACHE_STATE_M) {
+		if (IBS_OP_NB_IBS_REQ_SRC_02(trans_op)
+		    && !IBS_OP_NB_IBS_CACHE_HIT_ST(trans_op))
+			AGG_IBS_EVENT(DE_IBS_NB_CACHE_STATE_M) ;
+	}
 
-		case DE_IBS_NB_REMOTE_DRAM:
-			if (IBS_OP_NB_IBS_REQ_DST_PROC(trans_op)
-			    && (IBS_OP_NB_IBS_REQ_SRC(trans_op) == 0x3))
-				AGG_IBS_EVENT(DE_IBS_NB_REMOTE_DRAM) ;
-			break;
+	CHECK_OP_NB_SELECTED_FLAG(DE_IBS_NB_CACHE_STATE_O) {
+		if (IBS_OP_NB_IBS_REQ_SRC_02(trans_op)
+		    && IBS_OP_NB_IBS_CACHE_HIT_ST(trans_op))
+			AGG_IBS_EVENT(DE_IBS_NB_CACHE_STATE_O) ;
+	}
 
-		case DE_IBS_NB_LOCAL_OTHER:
-			if (!IBS_OP_NB_IBS_REQ_DST_PROC(trans_op)
-			    && (IBS_OP_NB_IBS_REQ_SRC(trans_op) == 0x7))
-				AGG_IBS_EVENT(DE_IBS_NB_LOCAL_OTHER);
-			break;
+	CHECK_OP_NB_SELECTED_FLAG(DE_IBS_NB_LOCAL_LATENCY) {
+		if (!IBS_OP_NB_IBS_REQ_DST_PROC(trans_op))
+			/* Request was serviced by local processor */
+			AGG_IBS_COUNT(DE_IBS_NB_LOCAL_LATENCY,
+				      IBS_OP_DC_MISS_LATENCY(trans_op));
+	}
 
-		case DE_IBS_NB_REMOTE_OTHER:
-			if (IBS_OP_NB_IBS_REQ_DST_PROC(trans_op)
-			    && (IBS_OP_NB_IBS_REQ_SRC(trans_op) == 0x7))
-				AGG_IBS_EVENT(DE_IBS_NB_REMOTE_OTHER) ;
-			break;
+	CHECK_OP_NB_SELECTED_FLAG(DE_IBS_NB_REMOTE_LATENCY) {
+		if (IBS_OP_NB_IBS_REQ_DST_PROC(trans_op))
+			/* Request was serviced by remote processor */
+			AGG_IBS_COUNT(DE_IBS_NB_REMOTE_LATENCY,
+				      IBS_OP_DC_MISS_LATENCY(trans_op));
+	}
+}
 
-		case DE_IBS_NB_CACHE_STATE_M:
-			if ((IBS_OP_NB_IBS_REQ_SRC(trans_op) == 0x2)
-			    && !IBS_OP_NB_IBS_CACHE_HIT_ST(trans_op))
-				AGG_IBS_EVENT(DE_IBS_NB_CACHE_STATE_M) ;
-			break;
 
-		case DE_IBS_NB_CACHE_STATE_O:
-			if ((IBS_OP_NB_IBS_REQ_SRC(trans_op) == 0x2)
-			    && IBS_OP_NB_IBS_CACHE_HIT_ST(trans_op))
-				AGG_IBS_EVENT(DE_IBS_NB_CACHE_STATE_O) ;
-			break;
+int trans_ibs_op_rip_invalid (struct transient * trans)
+{
+	struct ibs_op_sample * trans_op = ((struct ibs_sample*)(trans->ext))->op;
 
-		case DE_IBS_NB_LOCAL_LATENCY:
-			if (!IBS_OP_NB_IBS_REQ_DST_PROC(trans_op))
-				/* Request was serviced by local processor */
-				AGG_IBS_COUNT(DE_IBS_NB_LOCAL_LATENCY,
-					      IBS_OP_DC_MISS_LATENCY(trans_op));
-			break;
+	if (IBS_OP_RIP_INVALID(trans_op))
+		return 1;	
 
-		case DE_IBS_NB_REMOTE_LATENCY:
-			if (IBS_OP_NB_IBS_REQ_DST_PROC(trans_op))
-				/* Request was serviced by remote processor */
-				AGG_IBS_COUNT(DE_IBS_NB_REMOTE_LATENCY,
-					      IBS_OP_DC_MISS_LATENCY(trans_op));
-			break;
+	return 0;
+}
 
-		default:
-			break;
+
+void trans_ibs_op_mask_reserved (unsigned int family, struct transient * trans)
+{
+	struct ibs_op_sample * trans_op    = ((struct ibs_sample*)(trans->ext))->op;
+
+	switch (family) {
+	case 0x10:
+		/* Reserved IbsRipInvalid (MSRC001_1035[38])*/
+		trans_op->ibs_op_data1_high &= ~MASK_RIP_INVALID;
+		break;
+	case 0x12:
+		/* Reserved NbIbsReqDstProc (MSRCC001_1036[4]) */
+		trans_op->ibs_op_data2_low &= ~NB_MASK_REQ_DST_PROC;
+		/* Reserved NbIbsReqCacheHitSt (MSRCC001_1036[5]) */
+		trans_op->ibs_op_data2_low &= ~NB_MASK_L3_STATE;
+		break;
+	case 0x14:
+		/* Reserved NbIbsReqDstProc (MSRCC001_1036[4]) */
+		trans_op->ibs_op_data2_low &= ~NB_MASK_REQ_DST_PROC;
+		/* Reserved NbIbsReqCacheHitSt (MSRCC001_1036[5]) */
+		trans_op->ibs_op_data2_low &= ~NB_MASK_L3_STATE;
+		/* Reserved IbsDcL1tlbHit1G (MSRC001_1037[5]) */
+		trans_op->ibs_op_data3_low &= ~DC_MASK_L1_HIT_1G;
+		/* Reserved IbsDcLdBnkCon (MSRC001_1037[9]) */
+		trans_op->ibs_op_data3_low &= ~DC_MASK_LD_BANK_CONFLICT;
+		/* Reserved IbsDcStBnkCon (MSRC001_1037[10]) */
+		trans_op->ibs_op_data3_low &= ~DC_MASK_ST_BANK_CONFLICT;
+		/* Reserved IbsDcStToLdCan (MSRC001_1037[12]) */
+		trans_op->ibs_op_data3_low &= ~DC_MASK_ST_TO_LD_CANCEL;
+		/* Reserved IbsDcL2tlbHit1G (MSRC001_1037[19]) */
+		trans_op->ibs_op_data3_low &= ~DC_MASK_L2_HIT_1G;
+		
+		break;
+	case 0x15:
+	default:
+		break;
+	
+	}
+}
+
+
+void trans_ibs_op_bta(struct transient * trans)
+{
+	static cookie_t old_cookie     = NO_COOKIE;
+	static cookie_t old_app_cookie = NO_COOKIE;
+	static char const * mod        = NULL;
+	static char const * app        = NULL;
+	const char vmlinux[10]         = "vmlinux";
+	struct ibs_op_sample * trans_op = ((struct ibs_sample*)(trans->ext))->op;
+
+	if (!bta_log)
+		return;
+
+	if (!trans_op->ibs_op_brtgt_addr)
+		return;
+
+	if( old_app_cookie == INVALID_COOKIE 
+	||  old_app_cookie == NO_COOKIE 
+	||  old_app_cookie != trans->app_cookie) {
+		app = find_cookie(trans->app_cookie);
+		old_app_cookie = trans->cookie;
+	}
+
+	if (trans->in_kernel == 1) {
+		mod = vmlinux;
+		old_cookie = NO_COOKIE;
+	} else {
+		if( old_cookie == INVALID_COOKIE 
+		||  old_cookie == NO_COOKIE 
+		||  old_cookie != trans->cookie) {
+			mod = find_cookie(trans->cookie);
+			old_cookie = trans->cookie;
 		}
 	}
+
+	fprintf(bta_log, "0x%016llx,0x%016llx,%02lu %08u,%08u,0x%08x,0x%08lx\n",
+                        trans->app_cookie, trans->cookie, trans->cpu, trans->tgid, trans->tid, (unsigned int)trans->pc,
+			trans_op->ibs_op_brtgt_addr);
+}
+
+
+void trans_ibs_op_ls_memaccess(struct transient * trans)
+{
+	static cookie_t old_cookie     = NO_COOKIE;
+	static cookie_t old_app_cookie = NO_COOKIE;
+	static char const * mod        = NULL;
+	static char const * app        = NULL;
+	const char vmlinux[10]         = "vmlinux";
+	struct ibs_op_sample * trans_op = ((struct ibs_sample*)(trans->ext))->op;
+
+	if (!memaccess_log)
+		return;
+
+	if( old_app_cookie == INVALID_COOKIE 
+	||  old_app_cookie == NO_COOKIE 
+	||  old_app_cookie != trans->app_cookie) {
+		app = find_cookie(trans->app_cookie);
+		old_app_cookie = trans->cookie;
+	}
+
+	if (trans->in_kernel == 1) {
+		mod = vmlinux;
+		old_cookie = NO_COOKIE;
+	} else {
+		if( old_cookie == INVALID_COOKIE 
+		||  old_cookie == NO_COOKIE 
+		||  old_cookie != trans->cookie) {
+			mod = find_cookie(trans->cookie);
+			old_cookie = trans->cookie;
+		}
+	}
+
+	fprintf(memaccess_log, "0x%016llx,0x%016llx,%02lu,%08u,%08u,0x%08x,0x%08u:%08x,0x%08x:%08x,%s,%08u\n",
+                        trans->app_cookie, 
+trans->cookie, 
+trans->cpu, 
+trans->tgid, 
+trans->tid, 
+(unsigned int)trans->pc, 
+			trans_op->ibs_op_phys_addr_high, trans_op->ibs_op_phys_addr_low, 
+			trans_op->ibs_op_ldst_linaddr_high, trans_op->ibs_op_ldst_linaddr_low, 
+			(IBS_OP_IBS_LD_OP(trans_op))? "LD": "ST", 
+			(unsigned int) IBS_OP_DC_MISS_LATENCY(trans_op));
 }

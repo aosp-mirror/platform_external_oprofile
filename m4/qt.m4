@@ -101,7 +101,7 @@ AC_DEFUN([QT_TRY_LINK],
 dnl check we can do a compile
 AC_DEFUN([QT_CHECK_COMPILE],
 [
-	AC_MSG_CHECKING([for Qt library name])
+	AC_MSG_CHECKING([$1 for Qt library name])
  
 	AC_CACHE_VAL(qt_cv_libname,
 	[
@@ -206,8 +206,16 @@ AC_DEFUN([QT_DO_IT_ALL],
 	UIC=$ac_uic
 	AC_SUBST(UIC)
 
-	QT_CHECK_COMPILE
- 
+	QT_CHECK_COMPILE(in lib)
+	if test -z "$qt_cv_libname"; then
+		if test -n "$qt_cv_dir"; then
+		dnl Try again using lib64 vs lib
+			qt_cv_libraries=$qt_cv_dir/lib64
+			QT_LDFLAGS="-L$qt_cv_libraries"
+			QT_CHECK_COMPILE(in lib64)
+		fi
+	fi
+
 	QT_LIB=$qt_cv_libname;
 	AC_SUBST(QT_LIB)
 

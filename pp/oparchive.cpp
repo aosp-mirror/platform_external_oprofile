@@ -64,7 +64,6 @@ void copy_stats(string const & session_samples_dir,
 	stats_path = session_samples_dir + "stats/";
 
 	if (!(dir = opendir(stats_path.c_str()))) {
-		cerr << "Session overflow stats not available" << endl;
 		return;
 	}
 

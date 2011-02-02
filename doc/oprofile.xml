@@ -112,6 +112,12 @@ For information on how to use OProfile's JIT support, see <xref linkend="setup-j
 			</para>
 
 			<para>
+			To use OProfile's JIT support, a kernel version 2.6.13 or later is required.
+			In earlier kernel versions, the anonymous memory regions are not reported to OProfile and results
+			in profiling reports without any samples in these regions.
+			</para>
+
+			<para>
 			PPC64 processors (Power4/Power5/PPC970, etc.) require a recent (&gt; 2.6.5) kernel with the line 
 			<constant>#define PV_970</constant> present in <filename>include/asm-ppc64/processor.h</filename>.
 <!-- FIXME: do we require always gte 2.4.10 for nosmp ? -->

@@ -481,10 +481,7 @@ void warn_if_kern_buffs_overflow(string const & session_samples_dir)
 	closedir(dir);
 
  done:
-	if (ret == -1) {
-		cerr << "Overflow stats not available" << endl;
-	}
-	else if (ret > 0) {
+	if (ret > 0) {
 		cerr << "WARNING! The OProfile kernel driver reports sample "
 		     << "buffer overflows." << endl;
 		cerr << "Such overflows can result in incorrect sample attribution"

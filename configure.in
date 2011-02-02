@@ -12,7 +12,7 @@
 AC_PREREQ(2.13)
 
 AC_INIT(libop/op_config.h)
-AM_INIT_AUTOMAKE(oprofile, 0.9.6)
+AM_INIT_AUTOMAKE(oprofile, 0.9.7cvs)
 AM_CONFIG_HEADER(config.h)
 
 AC_CHECK_DECLS([basename], [], [], [[#include <libgen.h>]])
@@ -196,6 +196,12 @@ if test "$enable_optimization" = "no"; then
 	CXXFLAGS=`echo $CXXFLAGS | sed 's/-O2//g'`
 fi
 
+AC_ARG_ENABLE(account-check,
+	[  --disable-account-check     disable account check (default is enabled)],
+	enable_account_check=$enableval, enable_account_check=yes)
+
+AM_CONDITIONAL(CHECK_ACCOUNT, test "x$enable_account_check" = "xyes")
+
 AC_SUBST(OP_CFLAGS)
 AC_SUBST(OP_CXXFLAGS)
 
@@ -272,8 +278,10 @@ if test -z "$QT_LIB"; then
 	echo "Warning: a working Qt not found; no GUI will be built"
 fi
 
-if test "`getent passwd oprofile 2>/dev/null`" == "" || \
-   test "`getent group oprofile 2>/dev/null`" == ""; then
+if ! test "x$enable_account_check" = "xyes"; then
+	:
+elif test "`getent passwd oprofile 2>/dev/null`" == "" || \
+     test "`getent group oprofile 2>/dev/null`" == ""; then
 	if test `id -u` != "0"; then
 		echo "Warning: The user account 'oprofile:oprofile' does not exist on the system."
 		echo "         To profile JITed code, this special user account must exist."
