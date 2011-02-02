@@ -1,0 +1,162 @@
+#!/usr/bin/env python2.6
+#
+# Copyright (C) 2011 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+#
+# Remotely controls an OProfile session on an Android device.
+#
+
+import os
+import sys
+import subprocess
+import getopt
+import re
+
+
+class Adb:
+  def __init__(self, serial_number):
+    self._base_args = ['adb']
+    if serial_number != None:
+      self._base_args.append('-s')
+      self._base_args.append(serial_number)
+
+  def shell(self, command_args, echo=True):
+    print 'adb: %s' % (' '.join(command_args))
+    popen = subprocess.Popen(self._base_args + ['shell'] + command_args,
+      stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    output = ''
+    while True:
+      stdout, stderr = popen.communicate()
+      if echo:
+        print stdout
+        print stderr
+      output += stdout
+      output += stderr
+      rc = popen.poll()
+      if rc is not None:
+        break
+    print 'exit code: %d' % rc
+    return rc, output
+
+
+class Tool:
+  def __init__(self, argv):
+    self.argv = argv
+    self.verbose = False
+
+  def usage(self):
+    print "Usage:" + self.argv[0]
+    print "    -h, --help          : show this help text"
+    print "    -s, --serial=number : the serial number of the device being profiled"
+    print "    -v, --verbose       : show verbose output"
+    print "    --setup             : setup profiler"
+    print "    --shutdown          : shutdown profiler"
+    print "    --start             : start profiling"
+    print "    --stop              : stop profiling"
+    print "    --status            : show profiler status"
+    print
+
+  def main(self):
+    try:
+      opts, args = getopt.getopt(self.argv[1:],
+        "hs:v",
+        ["help", "serial=", "setup", "start", "stop", "status", "shutdown", "verbose"])
+    except getopt.GetoptError, e:
+      self.usage()
+      print str(e)
+      return 1
+
+    serial_number = None
+    command = None
+    for o, a in opts:
+      if o in ('-h', '--help'):
+        self.usage()
+        return 0
+      elif o in ('-s', '--serial'):
+        serial_number = a
+      elif o in ('-v', '--verbose'):
+        self.verbose = True
+      elif o in ('--setup', '--start', '--stop', '--status', '--shutdown'):
+        command = o[2:]
+      else:
+        assert False, 'unhandled option' + o
+
+    self.adb = Adb(serial_number)
+
+    if command == 'setup':
+      rc = self.setup()
+    elif command == 'shutdown':
+      rc = self.shutdown()
+    elif command == 'start':
+      rc = self.start()
+    elif command == 'stop':
+      rc = self.stop()
+    elif command == 'status':
+      rc = self.status()
+    else:
+      self.usage()
+      print 'A command must be specified.'
+      rc = 1
+    return rc
+
+  def setup(self):
+    rc, output = self.adb.shell(['cat', '/proc/kallsyms'], echo=False)
+    if rc != 0:
+      print 'Failed to determine kernel VMA range.'
+      return rc
+    vma_start = re.search('([0-9a-fA-F]{8}) T _text', output).group(1)
+    vma_end = re.search('([0-9a-fA-F]{8}) A _etext', output).group(1)
+
+    rc, output = self.adb.shell(['/system/xbin/opcontrol'] + self.opcontrol_verbose() + [
+      '--reset',
+      '--kernel-range=' + vma_start + '-' + vma_end,
+      '--event=CPU_CYCLES:100000',
+      '--setup',
+      '--status', '--verbose-log=all'])
+
+  def shutdown(self):
+    rc, output = self.adb.shell(['/system/xbin/opcontrol'] + self.opcontrol_verbose() + [
+      '--shutdown'])
+    if rc != 0:
+      print 'Failed to shutdown.'
+      return rc
+    return rc
+
+  def start(self):
+    rc, output = self.adb.shell(['/system/xbin/opcontrol'] + self.opcontrol_verbose() + [
+      '--start', '--status'])
+    return rc
+
+  def stop(self):
+    rc, output = self.adb.shell(['/system/xbin/opcontrol'] + self.opcontrol_verbose() + [
+      '--stop', '--status'])
+    return rc
+
+  def status(self):
+    rc, output = self.adb.shell(['/system/xbin/opcontrol'] + self.opcontrol_verbose() + [
+      '--status'])
+    return rc
+
+  def opcontrol_verbose(self):
+    if self.verbose:
+      return ['--verbose']
+    else:
+      return []
+
+# Main entry point
+tool = Tool(sys.argv)
+rc = tool.main()
+sys.exit(rc)

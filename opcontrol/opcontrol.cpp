@@ -27,7 +27,10 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <signal.h>
+#include <dirent.h>
 #include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 
 #include "op_config.h"
 
@@ -83,6 +86,7 @@ struct option long_options[] = {
     {"shutdown", 0, 0, 'h'},
     {"status", 0, 0, 't'},
     {"verbose", 0, 0, 'V'},
+    {"verbose-log", 1, 0, 'l'},
     {0, 0, 0, 0},
 };
 
@@ -292,6 +296,8 @@ void usage()
            "   --list-events    list event types\n"
            "   --help           this message\n"
            "   --verbose        show extra status\n"
+           "   --verbose-log=lvl set daemon logging verbosity during setup\n"
+           "                    levels are: all,sfile,arcs,samples,module,misc\n"
            "   --setup          setup directories\n"
 #if defined(__i386__) || defined(__x86_64__)
            "   --quick          setup and select CPU_CLK_UNHALTED:60000\n"
@@ -343,12 +349,17 @@ int do_setup()
     setup_session_dir();
 
     if (mkdir(OP_DRIVER_BASE, 0755)) {
-        fprintf(stderr, "Cannot create directory "OP_DRIVER_BASE": %s\n",
-                strerror(errno));
-        return -1;
+        if (errno != EEXIST) {
+            fprintf(stderr, "Cannot create directory "OP_DRIVER_BASE": %s\n",
+                    strerror(errno));
+            return -1;
+        }
     }
-    if (system("mount -t oprofilefs nodev "OP_DRIVER_BASE)) {
-        return -1;
+
+    if (access(OP_DRIVER_BASE"/stats", F_OK)) {
+        if (system("mount -t oprofilefs nodev "OP_DRIVER_BASE)) {
+            return -1;
+        }
     }
     return 0;
 }
@@ -417,7 +428,7 @@ int process_event(const char *event_spec)
         return -1;
     }
 
-    /* Use defualt count */
+    /* Use default count */
     if (count_name[0] == 0) {
         count_val = min_count[0];
     } else {
@@ -512,18 +523,46 @@ void do_status()
         }
         else {
             close(fd);
+
             printf("oprofiled pid: %d\n", num);
             num = read_num(OP_DRIVER_BASE"/enable");
+
             printf("profiler is%s running\n", num == 0 ? " not" : "");
-            num = read_num(OP_DRIVER_BASE"/stats/cpu0/sample_received");
-            printf("  %9u samples received\n", num);
-            num = read_num(OP_DRIVER_BASE"/stats/cpu0/sample_lost_overflow");
-            printf("  %9u samples lost overflow\n", num);
+
+            DIR* dir = opendir(OP_DRIVER_BASE"/stats");
+            if (dir) {
+                for (struct dirent* dirent; !!(dirent = readdir(dir));) {
+                    if (strlen(dirent->d_name) >= 4 && memcmp(dirent->d_name, "cpu", 3) == 0) {
+                        char cpupath[256];
+                        strcpy(cpupath, OP_DRIVER_BASE"/stats/");
+                        strcat(cpupath, dirent->d_name);
+
+                        strcpy(fullname, cpupath);
+                        strcat(fullname, "/sample_received");
+                        num = read_num(fullname);
+                        printf("  %s %9u samples received\n", dirent->d_name, num);
+
+                        strcpy(fullname, cpupath);
+                        strcat(fullname, "/sample_lost_overflow");
+                        num = read_num(fullname);
+                        printf("  %s %9u samples lost overflow\n", dirent->d_name, num);
+
+                        strcpy(fullname, cpupath);
+                        strcat(fullname, "/sample_invalid_eip");
+                        num = read_num(fullname);
+                        printf("  %s %9u samples invalid eip\n", dirent->d_name, num);
+
+                        strcpy(fullname, cpupath);
+                        strcat(fullname, "/backtrace_aborted");
+                        num = read_num(fullname);
+                        printf("  %s %9u backtrace aborted\n", dirent->d_name, num);
+                    }
+                }
+                closedir(dir);
+            }
 
 #if defined(__i386__) || defined(__x86_64__)
             /* FIXME on ARM - backtrace seems broken there */
-            num = read_num(OP_DRIVER_BASE"/stats/cpu0/backtrace_aborted");
-            printf("  %9u backtrace aborted\n", num);
             num = read_num(OP_DRIVER_BASE"/backtrace_depth");
             printf("  %9u backtrace_depth\n", num);
 #endif
@@ -549,14 +588,15 @@ void do_reset()
 int main(int argc, char * const argv[])
 {
     int option_index;
-    char command[1024];
+    bool show_status = false;
+    char* verbose_log = NULL;
 
     /* Initialize default strings */
     strcpy(vmlinux, "--no-vmlinux");
     strcpy(kernel_range, "");
 
     while (1) {
-        int c = getopt_long(argc, argv, "c:e:v:r:dhVt", long_options, &option_index);
+        int c = getopt_long(argc, argv, "c:e:v:r:dhVtl:", long_options, &option_index);
         if (c == -1) {
             break;
         }
@@ -565,7 +605,7 @@ int main(int argc, char * const argv[])
                 break;
             /* --callgraph */
             case 'c':
-		strncpy(callgraph, optarg, sizeof(callgraph));
+                strncpy(callgraph, optarg, sizeof(callgraph));
                 break;
             /* --event */
             case 'e':   
@@ -605,7 +645,7 @@ int main(int argc, char * const argv[])
                     kill(pid, SIGTERM);/* Politely ask the daemon to die */
                     sleep(1);
                     kill(pid, SIGKILL);
-                }   
+                }
                 setup_session_dir();
                 break;
             }
@@ -613,9 +653,13 @@ int main(int argc, char * const argv[])
             case 'V':
                 verbose_print++;
                 break;
+            /* --verbose-log */
+            case 'l':
+                verbose_log = strdup(optarg);
+                break;
             /* --status */
             case 't':
-                do_status();
+                show_status = true;
                 break;
             default:
                 usage();
@@ -662,9 +706,12 @@ int main(int argc, char * const argv[])
     }
 
     if (num_events != 0 || timer != 0) {
+        char command[1024];
         int i;
 
-        strcpy(command, "oprofiled --session-dir="OP_DATA_DIR);
+        strcpy(command, argv[0]);
+        char* slash = strrchr(command, '/');
+        strcpy(slash ? slash + 1 : command, "oprofiled --session-dir="OP_DATA_DIR);
 
 #if defined(__i386__) || defined(__x86_64__)
         /* Nothing */
@@ -703,24 +750,21 @@ int main(int argc, char * const argv[])
         }
 #endif
 
-
         /* Configure the counters and enable them */
         for (i = 0; i < num_events; i++) {
             int event_idx = selected_events[i];
             int setup_result = 0;
 
             if (i == 0) {
-                snprintf(command+strlen(command), 1024 - strlen(command), 
-                         " --events=");
-            }
-            else {
-                snprintf(command+strlen(command), 1024 - strlen(command), 
-                         ",");
+                snprintf(command + strlen(command), sizeof(command) - strlen(command),
+                        " --events=");
+            } else {
+                snprintf(command + strlen(command), sizeof(command) - strlen(command), ",");
             }
             /* Compose name:id:count:unit_mask:kernel:user, something like
              * --events=CYCLES_DATA_STALL:2:0:200000:0:1:1,....
              */
-            snprintf(command+strlen(command), 1024 - strlen(command), 
+            snprintf(command + strlen(command), sizeof(command) - strlen(command),
                      "%s:%d:%d:%d:%d:1:1",
                      event_info[event_idx].name,
                      event_info[event_idx].id,
@@ -750,18 +794,32 @@ int main(int argc, char * const argv[])
             }
         } else {
             /* Timer mode uses empty event list */
-            snprintf(command+strlen(command), 1024 - strlen(command),
-                     " --events=");
+            snprintf(command + strlen(command), sizeof(command) - strlen(command),
+                    " --events=");
         }
 
-        snprintf(command+strlen(command), 1024 - strlen(command), " %s",
-                 vmlinux);
+        snprintf(command + strlen(command), sizeof(command) - strlen(command),
+                " %s", vmlinux);
         if (kernel_range[0]) {
-            snprintf(command+strlen(command), 1024 - strlen(command), " %s",
-                     kernel_range);
+            snprintf(command + strlen(command), sizeof(command) - strlen(command),
+                    " %s", kernel_range);
         }
+
+        if (verbose_log) {
+            snprintf(command + strlen(command), sizeof(command) - strlen(command),
+                    " --verbose=%s", verbose_log);
+        }
+
+        printf("Starting oprofiled...\n");
         verbose("command: %s\n", command);
-        system(command);
+
+        int rc = system(command);
+        if (rc) {
+            fprintf(stderr, "Failed, oprofile returned exit code: %d\n", rc);
+        } else {
+            sleep(2);
+            printf("Ready\n");
+        }
     }
 
     if (start) {
@@ -771,5 +829,9 @@ int main(int argc, char * const argv[])
     if (stop) {
         echo_dev("1", 0, "dump", -1);
         echo_dev("0", 0, "enable", -1);
+    }
+
+    if (show_status) {
+        do_status();
     }
 }
