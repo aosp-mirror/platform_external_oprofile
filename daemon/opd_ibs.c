@@ -496,7 +496,17 @@ static void check_cpuid_family_model_stepping()
 	unsigned ebx, ecx, edx;
 
 	/* CPUID Fn0000_0001_EAX Family, Model, Stepping */
+#ifdef __PIC__
+	__asm__ __volatile__ (
+		"pushl %%ebx\n"
+		"cpuid\n"
+		"mov %%ebx, %1\n"
+		"popl %%ebx"
+		: "=a" (v.eax), "=r" (ebx), "=c" (ecx), "=d" (edx) : "0" (1)
+	);
+#else
 	asm ("cpuid" : "=a" (v.eax), "=b" (ebx), "=c" (ecx), "=d" (edx) : "0" (1));
+#endif
 
 	ibs_family   = v.family + v.ext_family;
 	ibs_model    = v.model + v.ext_model;
