@@ -123,7 +123,8 @@ class Tool:
     rc, output = self.adb.shell(['/system/xbin/opcontrol'] + self.opcontrol_verbose() + [
       '--reset',
       '--kernel-range=' + vma_start + '-' + vma_end,
-      '--event=CPU_CYCLES:100000',
+      #'--event=CPU_CYCLES:100000',
+      '--timer',
       '--setup',
       '--status', '--verbose-log=all'])
 

@@ -14,23 +14,16 @@ if (len(sys.argv) <= 1 or len(sys.argv) > 5):
     PrintUsage()
     sys.exit(1)
 
-# find prebuilt event data
-try:
-    oprofile_event_dir = os.environ['OPROFILE_EVENTS_DIR']
-except:
-    # TODO: We can remove this in the future since we pull the abi data
-    # off the device so we don't need it to be in the prebuilts directory.
-    print "OPROFILE_EVENTS_DIR not set. Run \". envsetup.sh\" first"
-    sys.exit(1)
-
 # find binaries
 try:
     oprofile_bin_dir = os.environ['OPROFILE_BIN_DIR']
 except:
-    # TODO: This assumes that the bin dir is prebuilt.
-    # When the host libbfd dependency is resolved and we can compile oprofile
-    # on the host, we should use those binaries instead.
-    oprofile_bin_dir = oprofile_event_dir + '/bin'
+    try:
+        android_host_out = os.environ['ANDROID_HOST_OUT']
+    except:
+        print "Either OPROFILE_BIN_DIR or ANDROID_HOST_OUT must be set. Run \". envsetup.sh\" first"
+        sys.exit(1)
+    oprofile_bin_dir = android_host_out + '/bin'
 
 argv_next = 1
 if sys.argv[1] == "-s":
