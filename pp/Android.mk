@@ -19,17 +19,19 @@ include $(LOCAL_PATH)/../common.mk
 common_src := common_option.cpp
 
 common_libs := \
-	libpp \
-	libop \
-	libutil \
-	libdb \
-	libop_regex \
-	libopt++ \
-	libutil++ \
-	libpopt \
-	libz
+	liboprofile_pp \
+	liboprofile_db \
+	liboprofile_op_regex \
+	liboprofile_opt++ \
+	liboprofile_util++ \
+	liboprofile_popt \
+	liboprofile_op \
+	liboprofile_util \
+	libbfd \
+	libiberty \
+	libintl
 
-common_ldlibs := -lbfd -liberty -lintl -liconv
+common_ldlibs := -lz $(common_host_ldlibs_libiconv)
 
 ifeq ($(HAVE_LIBBFD),true)
 
@@ -44,7 +46,6 @@ LOCAL_SRC_FILES:= \
 LOCAL_STATIC_LIBRARIES := $(common_libs)
 LOCAL_C_INCLUDES := $(common_host_c_includes)
 LOCAL_CFLAGS := $(common_host_cflags)
-LOCAL_LDFLAGS := $(common_host_ldflags)
 LOCAL_LDLIBS := $(common_ldlibs)
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE:= opreport
@@ -62,7 +63,6 @@ LOCAL_SRC_FILES:= \
 LOCAL_STATIC_LIBRARIES := $(common_libs)
 LOCAL_C_INCLUDES := $(common_host_c_includes)
 LOCAL_CFLAGS := $(common_host_cflags)
-LOCAL_LDFLAGS := $(common_host_ldflags)
 LOCAL_LDLIBS := $(common_ldlibs)
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE:= opannotate
@@ -80,7 +80,6 @@ LOCAL_SRC_FILES:= \
 LOCAL_STATIC_LIBRARIES := $(common_libs)
 LOCAL_C_INCLUDES := $(common_host_c_includes)
 LOCAL_CFLAGS := $(common_host_cflags)
-LOCAL_LDFLAGS := $(common_host_ldflags)
 LOCAL_LDLIBS := $(common_ldlibs)
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE:= opgprof
@@ -98,7 +97,6 @@ LOCAL_SRC_FILES:= \
 LOCAL_STATIC_LIBRARIES := $(common_libs)
 LOCAL_C_INCLUDES := $(common_host_c_includes)
 LOCAL_CFLAGS := $(common_host_cflags)
-LOCAL_LDFLAGS := $(common_host_ldflags)
 LOCAL_LDLIBS := $(common_ldlibs)
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE:= oparchive

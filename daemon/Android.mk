@@ -36,7 +36,12 @@ LOCAL_SRC_FILES:= \
 	opd_trans.c \
 	oprofiled.c
 
-LOCAL_STATIC_LIBRARIES := libpopt libutil libdb libabi libop
+LOCAL_STATIC_LIBRARIES := \
+	liboprofile_popt \
+	liboprofile_util \
+	liboprofile_db \
+	liboprofile_abi \
+	liboprofile_op
 
 LOCAL_C_INCLUDES := $(common_target_c_includes)
 LOCAL_CFLAGS := $(common_target_cflags)

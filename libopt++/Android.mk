@@ -22,9 +22,8 @@ include $(CLEAR_VARS)
 LOCAL_SRC_FILES:= popt_options.cpp
 LOCAL_C_INCLUDES := $(common_host_c_includes)
 LOCAL_CFLAGS := $(common_host_cflags)
-LOCAL_LDFLAGS := $(common_host_ldflags)
 LOCAL_MODULE_TAGS := optional
-LOCAL_MODULE := libopt++
+LOCAL_MODULE := liboprofile_opt++
 
 include $(BUILD_HOST_STATIC_LIBRARY)
 endif

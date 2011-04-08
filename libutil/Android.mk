@@ -35,7 +35,7 @@ LOCAL_SRC_FILES:= $(common_src)
 LOCAL_C_INCLUDES := $(common_target_c_includes)
 LOCAL_CFLAGS := $(common_target_cflags)
 LOCAL_MODULE_TAGS := optional
-LOCAL_MODULE := libutil
+LOCAL_MODULE := liboprofile_util
 
 include $(BUILD_STATIC_LIBRARY)
 
@@ -46,9 +46,8 @@ include $(CLEAR_VARS)
 LOCAL_SRC_FILES:= $(common_src)
 LOCAL_C_INCLUDES := $(common_host_c_includes)
 LOCAL_CFLAGS := $(common_host_cflags)
-LOCAL_LDFLAGS := $(common_host_ldflags)
 LOCAL_MODULE_TAGS := optional
-LOCAL_MODULE := libutil
+LOCAL_MODULE := liboprofile_util
 
 include $(BUILD_HOST_STATIC_LIBRARY)
 endif

@@ -25,7 +25,7 @@ LOCAL_SRC_FILES:= $(libabi_common_src)
 LOCAL_C_INCLUDES := $(common_target_c_includes)
 LOCAL_CFLAGS := $(common_target_cflags)
 LOCAL_MODULE_TAGS := optional
-LOCAL_MODULE := libabi
+LOCAL_MODULE := liboprofile_abi
 
 include $(BUILD_STATIC_LIBRARY)
 
@@ -39,9 +39,8 @@ LOCAL_SRC_FILES:= \
 
 LOCAL_C_INCLUDES := $(common_host_c_includes)
 LOCAL_CFLAGS := $(common_host_cflags)
-LOCAL_LDFLAGS := $(common_host_ldflags)
 LOCAL_MODULE_TAGS := optional
-LOCAL_MODULE := libabi
+LOCAL_MODULE := liboprofile_abi
 
 include $(BUILD_HOST_STATIC_LIBRARY)
 endif
@@ -53,9 +52,14 @@ include $(CLEAR_VARS)
 LOCAL_SRC_FILES:= opimport.cpp
 LOCAL_C_INCLUDES := $(common_host_c_includes)
 LOCAL_CFLAGS := $(common_host_cflags)
-LOCAL_LDFLAGS := $(common_host_ldflags)
-LOCAL_STATIC_LIBRARIES := libabi libdb libopt++ libutil libutil++ libpopt
-LOCAL_LDLIBS := -liberty
+LOCAL_STATIC_LIBRARIES := \
+	liboprofile_abi \
+	liboprofile_db \
+	liboprofile_opt++ \
+	liboprofile_util \
+	liboprofile_util++ \
+	liboprofile_popt \
+	libiberty
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := opimport
 

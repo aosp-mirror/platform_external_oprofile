@@ -26,7 +26,11 @@ LOCAL_SRC_FILES:= \
 	opcontrol.cpp
 
 LOCAL_STATIC_LIBRARIES := \
-	libpopt libutil libdb libabi libop
+	liboprofile_popt \
+	liboprofile_util \
+	liboprofile_db \
+	liboprofile_abi \
+	liboprofile_op
 
 LOCAL_C_INCLUDES := $(common_target_c_includes)
 LOCAL_CFLAGS := $(common_target_cflags)

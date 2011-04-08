@@ -32,21 +32,22 @@ common_target_c_includes := $(common_c_includes)
 common_target_cflags := $(common_cflags)
 
 # Common host flags
-# FIXME: Temporarily disabled until we get libiconv.a in the prebuilts.
-#ifeq ($(strip $(TARGET_ARCH)),arm)
-#toolchain := prebuilt/$(HOST_PREBUILT_TAG)/toolchain/arm-linux-androideabi-4.4.x
-#HAVE_LIBBFD := true
-#else
 HAVE_LIBBFD := false
-#endif
 
-ifeq ($(HAVE_LIBBFD),true)
+ifeq ($(TARGET_ARCH),arm)
+toolchain := prebuilt/$(HOST_PREBUILT_TAG)/toolchain/arm-linux-androideabi-4.4.x
 common_host_c_includes := $(common_c_includes) $(toolchain)/include
+common_host_cflags := $(common_cflags) -fexceptions -DANDROID_HOST -DHAVE_XCALLOC
+common_host_ldlibs_libiconv :=
 
-common_host_cflags = $(common_cflags) -fexceptions -DANDROID_HOST -DHAVE_XCALLOC
-ifneq ($(HOST_OS),linux)
+ifeq ($(HOST_OS)-$(HOST_ARCH),darwin-x86)
+HAVE_LIBBFD := true
 common_host_cflags += -DMISSING_MREMAP
+common_host_ldlibs_libiconv := -liconv
+else
+ifeq ($(HOST_OS)-$(HOST_ARCH),linux-x86)
+HAVE_LIBBFD := true
+endif
 endif
 
-common_host_ldflags := -L$(toolchain)/lib
 endif
