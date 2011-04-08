@@ -34,6 +34,7 @@ LOCAL_MODULE := libdb
 include $(BUILD_STATIC_LIBRARY)
 
 # Build libdb on host
+ifeq ($(HAVE_LIBBFD),true)
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:= $(common_src)
@@ -45,3 +46,4 @@ LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := libdb
 
 include $(BUILD_HOST_STATIC_LIBRARY)
+endif

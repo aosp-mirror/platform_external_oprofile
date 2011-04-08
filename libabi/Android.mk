@@ -30,6 +30,7 @@ LOCAL_MODULE := libabi
 include $(BUILD_STATIC_LIBRARY)
 
 # Build libabi on host
+ifeq ($(HAVE_LIBBFD),true)
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:= \
@@ -43,6 +44,7 @@ LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := libabi
 
 include $(BUILD_HOST_STATIC_LIBRARY)
+endif
 
 # Build opimport on host
 ifeq ($(HAVE_LIBBFD),true)

@@ -16,6 +16,7 @@ LOCAL_PATH:= $(call my-dir)
 include $(LOCAL_PATH)/../common.mk
 
 # Build libopt++ on host
+ifeq ($(HAVE_LIBBFD),true)
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:= popt_options.cpp
@@ -26,4 +27,4 @@ LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := libopt++
 
 include $(BUILD_HOST_STATIC_LIBRARY)
-
+endif
