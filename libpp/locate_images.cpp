@@ -185,6 +185,13 @@ string const extra_images::find_image_path(string const & image_name,
 		return fixup ? result[0] : image_name;
 	}
 
+#ifdef ANDROID
+	// On Android, we often have both stripped and unstripped versions of the same
+	// library in the image path.  Choose the first one found instead of issuing a
+	// multiple match error.
+	error = image_ok;
+	return fixup ? result[0] : image_name;
+#else
 	// We can't get multiple result except if only one result is prefixed
 	// by archive_path or by root_path.
 	size_t count = 0;
@@ -212,6 +219,7 @@ string const extra_images::find_image_path(string const & image_name,
 
 	error = image_multiple_match;
 	return image_name;
+#endif
 }
 
 

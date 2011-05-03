@@ -114,6 +114,12 @@ void check_mtime(string const & file, opd_header const & header)
 	} else {
 		static bool warned_already = false;
 
+#ifdef ANDROID
+		// Android symbol files may not have the same timestamp as the stripped
+		// files deployed to the device.  Suppress spurious warnings.
+		if (file.find("/symbols/") == string::npos) {
+#endif
+
 		cerr << "warning: the last modified time of the binary file "
 		     "does not match that of the sample file for " << file
 		     << "\n";
@@ -123,6 +129,10 @@ void check_mtime(string const & file, opd_header const & header)
 			"has been modified since the sample file was created.\n";
 			warned_already = true;
 		}
+
+#ifdef ANDROID
+		}
+#endif
 	}
 }
 
