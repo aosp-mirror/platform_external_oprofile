@@ -116,6 +116,9 @@ class Tool:
     print "                                (not supported on all devices)"
     print "      -c, --callgraph=[depth] : specify callgraph capture depth, default is none"
     print "                                (not supported in timer mode)"
+    print "      -k, --kernel-image      : specifies the location of a kernel image relative to the symbols directory"
+    print "                                (and turns on kernel profiling). This need not be the same as the"
+    print "                                location of the kernel on the actual device."
     print
     print "    shutdown              : shutdown profiler"
     print
@@ -193,11 +196,13 @@ class Tool:
   def do_setup(self, command_args):
     events = []
     timer = False
+    kernel = False
+    kernel_image = ''
     callgraph = None
 
     try:
       opts, args = getopt.getopt(command_args,
-        'te:c:', ['timer', 'event=', 'callgraph='])
+        'te:c:k:', ['timer', 'event=', 'callgraph=', 'kernel='])
     except getopt.GetoptError, e:
       print '* Unsupported setup command arguments:', str(e)
       return 2
@@ -209,6 +214,9 @@ class Tool:
         events.append('--event=' + a)
       elif o in ('-c', '--callgraph'):
         callgraph = a
+      elif o in ('-k', '--kernel'):
+        kernel = True
+        kernel_image = a
 
     if len(args) != 0:
       print '* Unsupported setup command arguments: %s' % (' '.join(args))
@@ -231,6 +239,8 @@ class Tool:
       opcontrol_args.append('--timer')
     if callgraph is not None:
       opcontrol_args.append('--callgraph=' + callgraph)
+    if kernel and len(kernel_image) != 0:
+      opcontrol_args.append('--vmlinux=' + kernel_image)
 
     # Get kernal VMA range.
     rc, output = self.adb.shell(['cat', '/proc/kallsyms'], echo=False)
@@ -244,7 +254,7 @@ class Tool:
     # Setup the profiler.
     rc, output = self.adb.shell(['/system/xbin/opcontrol'] + self._opcontrol_verbose_arg() + [
       '--reset',
-      '--kernel-range=' + vma_start + '-' + vma_end] + opcontrol_args + [
+      '--kernel-range=' + vma_start + ',' + vma_end] + opcontrol_args + [
       '--setup',
       '--status', '--verbose-log=all'])
     if rc != 0:
