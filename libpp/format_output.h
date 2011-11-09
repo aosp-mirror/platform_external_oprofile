@@ -91,7 +91,7 @@ protected:
 		symbol_entry const & symbol;
 		sample_entry const & sample;
 		size_t pclass;
-		mutable counts_t & counts;
+		counts_t & counts;
 		extra_images const & extra;
 		double diff;
 	};
