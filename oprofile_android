@@ -230,10 +230,6 @@ class Tool:
       print '* --timer and --event cannot be used together.'
       return 2
 
-    if timer and callgraph is not None:
-      print '* --callgraph cannot be used with --timer.'
-      return 2
-
     opcontrol_args = events
     if timer:
       opcontrol_args.append('--timer')
