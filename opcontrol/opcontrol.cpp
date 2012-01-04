@@ -342,9 +342,31 @@ void setup_session_dir()
     }
 }
 
+int read_num(const char* file)
+{
+    char buffer[256];
+    int fd = open(file, O_RDONLY);
+    if (fd<0) return -1;
+    int rd = read(fd, buffer, sizeof(buffer)-1);
+    buffer[rd] = 0;
+    close(fd);
+    return atoi(buffer);
+}
+
 int do_setup()
 {
     char dir[1024];
+
+    /*
+     * Kill the old daemon so that setup can be done more than once to achieve
+     * the same effect as reset.
+     */
+    int num = read_num(OP_DATA_DIR"/lock");
+    if (num >= 0) {
+        printf("Terminating the old daemon...\n");
+        kill(num, SIGTERM);
+        sleep(5);
+    }
 
     setup_session_dir();
 
@@ -471,16 +493,6 @@ int echo_dev(const char* str, int val, const char* file, int counter)
     return 0;
 }
 
-int read_num(const char* file)
-{
-    char buffer[256];
-    int fd = open(file, O_RDONLY);
-    if (fd<0) return -1;
-    int rd = read(fd, buffer, sizeof(buffer)-1);
-    buffer[rd] = 0;
-    return atoi(buffer);
-}
-
 void do_status()
 {
     int num;
@@ -517,7 +529,7 @@ void do_status()
         sprintf(fullname, "/proc/%d", num);
         fd = open(fullname, O_RDONLY);
         if (fd == -1) {
-            printf("Session directory is not clean - do \"opcontrol --setup\""
+            printf("OProfile daemon exited prematurely - redo setup"
                    " before you continue\n");
             return;
         }
@@ -561,11 +573,8 @@ void do_status()
                 closedir(dir);
             }
 
-#if defined(__i386__) || defined(__x86_64__)
-            /* FIXME on ARM - backtrace seems broken there */
             num = read_num(OP_DRIVER_BASE"/backtrace_depth");
-            printf("  %9u backtrace_depth\n", num);
-#endif
+            printf("backtrace_depth: %u\n", num);
         }
     }
     else {
@@ -575,6 +584,20 @@ void do_status()
 
 void do_reset() 
 {
+    /*
+     * Sending SIGHUP will result in the following crash in oprofiled when
+     * profiling subsequent runs:
+     * Stack Trace:
+     * RELADDR   FUNCTION                         FILE:LINE
+     *   00008cd8  add_node+12                    oprofilelibdb/db_insert.c:32
+     *   00008d69  odb_update_node_with_offset+60 oprofilelibdb/db_insert.c:102
+     *
+     * However without sending SIGHUP oprofile cannot be restarted successfully.
+     * As a temporary workaround, change do_reset into a no-op for now and kill
+     * the old daemon in do_setup to start all over again as a heavy-weight
+     * reset.
+     */
+#if 0
     int fd;
 
     fd = open(OP_DATA_DIR"/samples/current", O_RDONLY);
@@ -583,6 +606,13 @@ void do_reset()
     }
     close(fd);
     system("rm -r "OP_DATA_DIR"/samples/current");
+    int num = read_num(OP_DATA_DIR"/lock");
+
+    if (num >= 0) {
+        printf("Signalling daemon...\n");
+        kill(num, SIGHUP);
+    }
+#endif
 }
 
 int main(int argc, char * const argv[])
@@ -630,10 +660,6 @@ int main(int argc, char * const argv[])
             /* --dump */ {
                 int pid = read_num(OP_DATA_DIR"/lock");
                 echo_dev("1", 0, "dump", -1);
-                if (pid >= 0) {
-                    sleep(1);
-                    kill(pid, SIGHUP);
-                }
                 break;
             }
             /* --shutdown */
@@ -824,6 +850,11 @@ int main(int argc, char * const argv[])
 
     if (start) {
         echo_dev("1", 0, "enable", -1);
+        int num = read_num(OP_DATA_DIR"/lock");
+
+        if (num >= 0) {
+            kill(num, SIGUSR1);
+        }
     }
 
     if (stop) {
