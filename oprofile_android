@@ -40,6 +40,7 @@ except:
 
 opimport_bin = os.path.join(oprofile_bin_dir, 'opimport')
 opreport_bin = os.path.join(oprofile_bin_dir, 'opreport')
+opannotate_bin = os.path.join(oprofile_bin_dir, 'opannotate')
 
 
 # Find symbol directories
@@ -136,6 +137,11 @@ class Tool:
     print "      -c, --callgraph         : show callgraph"
     print "      --help                  : show help for additional opreport options"
     print
+    print "    annotate [args]       : generate annotation with specified arguments to 'annotation'"
+    print "      -s, --source            : show source"
+    print "      -a, --assembly          : show assembly"
+    print "      --help                  : show help for additional opannotate options"
+    print
 
   def main(self):
     rc = self.do_main()
@@ -187,6 +193,8 @@ class Tool:
       rc = self.do_import(command_args)
     elif command == 'report':
       rc = self.do_report(command_args)
+    elif command == 'annotate':
+      rc = self.do_annotate(command_args)
     else:
       print '* Unknown command: ' + command
       return 2
@@ -411,6 +419,13 @@ class Tool:
       return 1
     return 0
 
+  def do_annotate(self, command_args):
+    rc, output = self._execute_opannotate(command_args)
+    if rc != 0:
+      print '* Failed to generate annotation.'
+      return 1
+    return 0
+
   def _opcontrol_verbose_arg(self):
     if self.verbose:
       return ['--verbose']
@@ -421,6 +436,28 @@ class Tool:
     return execute([opreport_bin,
       '--session-dir=' + self.session_dir,
       '--image-path=' + symbols_dir + ',' + system_dir] + args)
+
+  def _execute_opannotate(self, command_args):
+    try:
+      opts, args = getopt.getopt(command_args, 'sa', ['source', 'assembly',
+                                                      'help'])
+    except getopt.GetoptError, e:
+      print '* Unsupported opannotate command arguments:', str(e)
+      return 2
+
+    anno_flag = []
+    for o, a in opts:
+      if o in ('-s', '--source'):
+        anno_flag.append('-s')
+      if o in ('-a', '--assembly'):
+        anno_flag.append('-a')
+        anno_flag.append('--objdump-params=-Cd')
+      if o in ('--help'):
+        anno_flag.append('--help')
+
+    return execute([opannotate_bin,
+      '--session-dir=' + self.session_dir,
+      '--image-path=' + symbols_dir + ',' + system_dir] + anno_flag + args)
 
 # Main entry point
 tool = Tool(sys.argv)

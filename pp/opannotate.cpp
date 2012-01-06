@@ -417,7 +417,11 @@ void do_one_output_objdump(symbol_collection const & symbols,
 	}
 
 	args.push_back(image_name);
+#if defined(ANDROID)
+	child_reader reader("arm-eabi-objdump", args);
+#else
 	child_reader reader("objdump", args);
+#endif
 	if (reader.error()) {
 		cerr << "An error occur during the execution of objdump:\n\n";
 		cerr << reader.error_str() << endl;
