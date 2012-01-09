@@ -439,11 +439,14 @@ class Tool:
 
   def _execute_opannotate(self, command_args):
     try:
-      opts, args = getopt.getopt(command_args, 'sa', ['source', 'assembly',
-                                                      'help'])
+      opts, args = getopt.getopt(command_args, 'sap:',
+                                 ['source', 'assembly', 'help', 'image-path='])
     except getopt.GetoptError, e:
       print '* Unsupported opannotate command arguments:', str(e)
       return 2
+
+    # Start with the default symbols directory
+    symbols_dirs = symbols_dir
 
     anno_flag = []
     for o, a in opts:
@@ -454,10 +457,12 @@ class Tool:
         anno_flag.append('--objdump-params=-Cd')
       if o in ('--help'):
         anno_flag.append('--help')
+      if o in ('p', '--image-path'):
+        symbols_dirs = a + ',' + symbols_dir
 
     return execute([opannotate_bin,
       '--session-dir=' + self.session_dir,
-      '--image-path=' + symbols_dir + ',' + system_dir] + anno_flag + args)
+      '--image-path=' + symbols_dirs + ',' + system_dir] + anno_flag + args)
 
 # Main entry point
 tool = Tool(sys.argv)
