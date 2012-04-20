@@ -35,7 +35,7 @@ common_target_cflags := $(common_cflags)
 HAVE_LIBBFD := false
 
 ifeq ($(TARGET_ARCH),arm)
-toolchain := prebuilt/$(HOST_PREBUILT_TAG)/toolchain/arm-linux-androideabi-4.4.x
+toolchain := prebuilts/gcc/$(HOST_PREBUILT_TAG)/arm/arm-linux-androideabi-4.6
 common_host_c_includes := $(common_c_includes) $(toolchain)/include
 common_host_cflags := $(common_cflags) -fexceptions -DANDROID_HOST -DHAVE_XCALLOC
 common_host_ldlibs_libiconv :=
