@@ -31,7 +31,7 @@ common_libs := \
 	libiberty \
 	libintl
 
-common_ldlibs := -lz $(common_host_ldlibs_libiconv)
+common_ldlibs := -lz $(common_host_ldlibs_libiconv) -ldl
 
 ifeq ($(HAVE_LIBBFD),true)
 
