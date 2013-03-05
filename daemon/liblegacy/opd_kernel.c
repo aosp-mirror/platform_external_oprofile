@@ -393,7 +393,7 @@ void opd_handle_kernel_sample(unsigned long eip, u32 counter)
 
 int opd_eip_is_kernel(unsigned long eip)
 {
-#ifdef __i386
+#ifdef __i386__
 #define KERNEL_OFFSET 0xC0000000
 	/*
 	 * kernel_start == 0 when using --no-vmlinux.
