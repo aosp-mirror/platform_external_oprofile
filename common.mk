@@ -36,6 +36,15 @@ HAVE_LIBBFD := false
 
 ifeq ($(TARGET_ARCH),arm)
 toolchain := prebuilts/gcc/$(HOST_PREBUILT_TAG)/arm/arm-linux-androideabi-4.6
+common_host_extra_flags := -DANDROID_TARGET_ARM
+endif
+
+ifeq ($(TARGET_ARCH),mips)
+toolchain := prebuilts/gcc/$(HOST_PREBUILT_TAG)/mips/mipsel-linux-android-4.6
+common_host_extra_flags := -DANDROID_TARGET_MIPS
+endif
+
+ifneq ($(filter arm mips,$(TARGET_ARCH)),)
 common_host_c_includes := $(common_c_includes) $(toolchain)/include
 common_host_cflags := $(common_cflags) -fexceptions -DANDROID_HOST -DHAVE_XCALLOC
 common_host_ldlibs_libiconv :=
