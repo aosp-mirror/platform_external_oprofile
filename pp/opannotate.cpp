@@ -417,8 +417,10 @@ void do_one_output_objdump(symbol_collection const & symbols,
 	}
 
 	args.push_back(image_name);
-#if defined(ANDROID)
+#if defined(ANDROID_TARGET_ARM)
 	child_reader reader("arm-eabi-objdump", args);
+#elif defined(ANDROID_TARGET_MIPS)
+	child_reader reader("mipsel-linux-android-objdump", args);
 #else
 	child_reader reader("objdump", args);
 #endif

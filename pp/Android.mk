@@ -62,7 +62,7 @@ LOCAL_SRC_FILES:= \
 
 LOCAL_STATIC_LIBRARIES := $(common_libs)
 LOCAL_C_INCLUDES := $(common_host_c_includes)
-LOCAL_CFLAGS := $(common_host_cflags)
+LOCAL_CFLAGS := $(common_host_cflags) $(common_host_extra_flags)
 LOCAL_LDLIBS := $(common_ldlibs)
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE:= opannotate
