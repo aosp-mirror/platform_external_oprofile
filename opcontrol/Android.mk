@@ -18,10 +18,6 @@ include $(LOCAL_PATH)/../common.mk
 # Build opcontrol executable on target
 include $(CLEAR_VARS)
 
-ifeq ($(ARCH_ARM_HAVE_ARMV7A), true)
-    LOCAL_CFLAGS += -DWITH_ARM_V7_A
-endif
-
 LOCAL_SRC_FILES:= \
 	opcontrol.cpp
 
@@ -34,6 +30,10 @@ LOCAL_STATIC_LIBRARIES := \
 
 LOCAL_C_INCLUDES := $(common_target_c_includes)
 LOCAL_CFLAGS := $(common_target_cflags)
+
+ifeq ($(ARCH_ARM_HAVE_ARMV7A), true)
+    LOCAL_CFLAGS += -DWITH_ARM_V7_A
+endif
 
 LOCAL_MODULE_PATH := $(TARGET_OUT_OPTIONAL_EXECUTABLES)
 LOCAL_MODULE_TAGS := debug
