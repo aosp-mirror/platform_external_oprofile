@@ -12,4 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-include $(call all-subdir-makefiles)
+# It is non-trivial to retire a project completely from the repository,
+# so we disable the build explicitly here.
+# b/13249790
+#include $(call all-subdir-makefiles)
